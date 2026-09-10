@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "confidence": "invented",
+    "note": "原版 dnd 的职业/属性/经验表不可考（见 docs/research-dossier.md 第四节 C 类）。本表为复刻自定，可在不改代码的前提下整体替换。",
+    "source": "docs/research-dossier.md#四"
+  },
+  "classes": [
+    {
+      "id": "warrior", "name": "战士", "name_zh": "战士", "blurb": "皮糙肉厚，近战最强，不会法术。",
+      "hit_die": 10, "mp_per_level": 0, "spells": [],
+      "start_items": ["sword", "chain_mail", "potion_healing"]
+    },
+    {
+      "id": "wizard", "name": "法师", "name_zh": "法师", "blurb": "血少但能施法，法术是主要输出。",
+      "hit_die": 6, "mp_per_level": 3, "spells": ["magic_missile", "shield", "lightning_bolt"],
+      "start_items": ["dagger", "leather_armor", "potion_healing", "potion_healing"]
+    },
+    {
+      "id": "cleric", "name": "牧师", "name_zh": "牧师", "blurb": "能治疗与祝福，对不死生物有优势。",
+      "hit_die": 8, "mp_per_level": 2, "spells": ["cure_light_wounds", "bless"],
+      "start_items": ["mace", "studded_armor", "potion_healing"]
+    },
+    {
+      "id": "rogue", "name": "盗贼", "name_zh": "盗贼", "blurb": "身法灵活（敏捷加成高），适合取宝脱身。",
+      "hit_die": 8, "mp_per_level": 0, "spells": [],
+      "start_items": ["short_sword", "studded_armor", "potion_healing"]
+    }
+  ],
+  "attack_progressions": {
+    "warrior": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    "cleric": [0, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6],
+    "rogue": [0, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6],
+    "wizard": [0, 0, 1, 1, 2, 2, 2, 3, 3, 3, 4]
+  },
+  "xp_thresholds": [0, 15, 45, 100, 190, 320, 500, 730, 1050, 1450, 1950, 2600, 3400, 4400, 5600]
+}

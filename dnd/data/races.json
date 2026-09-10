@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "confidence": "invented",
+    "note": "原版 dnd 是否有种族系统不可考（见 docs/research-dossier.md 第四节 C 类）。本表为复刻自定：只改属性调整、起始生命/法力与视野半径，可整体替换。",
+    "source": "docs/research-dossier.md#四"
+  },
+  "races": [
+    {"id": "human", "name": "人类", "name_zh": "人类", "name_en": "Human", "mods": {}, "hp_bonus": 1, "mp_bonus": 1, "fov_bonus": 0,
+     "blurb": "均衡无短板，起始生命与法力各 +1。"},
+    {"id": "elf", "name": "精灵", "name_zh": "精灵", "name_en": "Elf", "mods": {"DEX": 2, "CON": -1}, "hp_bonus": 0, "mp_bonus": 1, "fov_bonus": 1,
+     "blurb": "夜视：视野半径 +1，敏捷 +2、体质 -1。"},
+    {"id": "dwarf", "name": "矮人", "name_zh": "矮人", "name_en": "Dwarf", "mods": {"CON": 2, "DEX": -1}, "hp_bonus": 2, "mp_bonus": 0, "fov_bonus": 0,
+     "blurb": "坚韧：起始生命 +2，体质 +2、敏捷 -1。"},
+    {"id": "gnome", "name": "侏儒", "name_zh": "侏儒", "name_en": "Gnome", "mods": {"INT": 1, "DEX": 1, "STR": -1}, "hp_bonus": 0, "mp_bonus": 2, "fov_bonus": 1,
+     "blurb": "法术亲和：起始法力 +2、视野 +1，智力/敏捷 +1、力量 -1。"}
+  ]
+}

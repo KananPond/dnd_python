@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 运行期数据：存档与名人堂由玩家产生，不入库
+saves/*.json
+!saves/.gitkeep
+
+# 机器人跑批输出
+out/
+*.log
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
