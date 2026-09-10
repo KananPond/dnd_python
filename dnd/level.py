@@ -149,6 +149,24 @@ def _center(room):
     return (x + w // 2, y + h // 2)
 
 
+def _beside(level: Level, spot, avoid=()):
+    """spot 旁边（先看四邻+斜角，再看距离 2 一圈）第一个空着的可走格。
+
+    找不到就退回 spot 本身（房间中心被围死这种极端情况）。
+    """
+    x0, y0 = spot
+    ring1 = [(x0 + dx, y0 + dy) for dx, dy in
+             ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))]
+    ring2 = [(x0 + dx, y0 + dy) for dx in range(-2, 3) for dy in range(-2, 3)
+             if max(abs(dx), abs(dy)) == 2]
+    for (x, y) in ring1 + ring2:
+        if (x, y) in avoid or not level.is_walkable(x, y):
+            continue
+        if level.monster_at(x, y) is None and not level.items_at(x, y):
+            return (x, y)
+    return spot
+
+
 def reachable(level: Level, start) -> set:
     """从 start 出发可走到的瓦片集合（BFS）。"""
     if not level.is_walkable(*start):
@@ -245,13 +263,24 @@ def generate(depth: int, rng, *, w: int = LEVEL_W, h: int = LEVEL_H) -> Level:
         drop("gem", depth // 3)
 
         # --- 第 10 层：遗物 + 守卫 ---
+        # 两个坑都要避开：
+        #  1) 守卫必须**必定生成**（原实现遇到房间中心被随机怪占住就整段跳过，boss 直接消失）；
+        #  2) 遗物要放在守卫**身边**而不是脚下 —— 守卫正面硬拼几乎打不过（模拟胜率 <8%），
+        #     放脚下等于"必须先杀 boss"，游戏实际无法通关；放身边则是"引开守卫再抢"的可玩终局。
         if depth >= MAX_DEPTH:
-            relic_spot = _center(rooms[-1])
-            if level.monster_at(*relic_spot) is None:
-                guardian = content.monsters["deep_guardian"]
-                level.monsters.append(make_monster(guardian, relic_spot[0], relic_spot[1], rng))
-                spot = level.free_tile(rng, avoid={relic_spot, level.up})
-                relic_spot = spot or relic_spot
+            anchor = _center(rooms[-1])
+            occupant = level.monster_at(*anchor)
+            if occupant is not None:  # 先请走占着房间中心的随机怪
+                spot = level.free_tile(rng, avoid={anchor, level.up},
+                                       min_distance_from=anchor, min_distance=3)
+                if spot:
+                    occupant.x, occupant.y = spot
+            guard_spot = anchor if level.monster_at(*anchor) is None else level.free_tile(
+                rng, avoid={level.up})
+            guard_spot = guard_spot or anchor
+            guardian = content.monsters["deep_guardian"]
+            level.monsters.append(make_monster(guardian, guard_spot[0], guard_spot[1], rng))
+            relic_spot = _beside(level, guard_spot, avoid={level.up})
             level.ground.append((make_item("relic", rng, depth), relic_spot[0], relic_spot[1]))
 
         # --- 连通性校验 ---

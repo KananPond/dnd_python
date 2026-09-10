@@ -117,6 +117,21 @@ def make_monster(template: dict, x: int, y: int, rng) -> Monster:
     )
 
 
+def _relink_equipment(inventory: list, data: dict | None) -> "Item | None":
+    """把存档里的装备数据还原成背包中的同一个对象（找不到才新建）。
+
+    背包/装备是两份 JSON 字段，直接各建一份 Item 会造成"同一件剑有两个对象"，
+    于是 `item is player.weapon` 之类的判断在读档后失效。
+    """
+    if not data:
+        return None
+    item = Item.from_json(data)
+    for owned in inventory:
+        if owned == item:  # dataclass 值相等即视为同一件装备
+            return owned
+    return item
+
+
 @dataclass
 class Player:
     name: str
@@ -205,8 +220,10 @@ class Player:
         p.mp, p.max_mp, p.gold = d["mp"], d["max_mp"], d["gold"]
         p.attrs = dict(d["attrs"])
         p.inventory = [Item.from_json(x) for x in d["inventory"]]
-        p.weapon = Item.from_json(d["weapon"]) if d["weapon"] else None
-        p.armor = Item.from_json(d["armor"]) if d["armor"] else None
+        # 装备必须指回背包里的**同一个对象**：UI（背包浮层）用 `item is player.weapon`
+        # 判断"已装备"，各建一份副本会让读档后的装备标记凭空消失。
+        p.weapon = _relink_equipment(p.inventory, d["weapon"])
+        p.armor = _relink_equipment(p.inventory, d["armor"])
         p.buffs = {k: list(v) for k, v in d["buffs"].items()}
         p.kills = dict(d["kills"])
         return p

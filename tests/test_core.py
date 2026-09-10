@@ -92,6 +92,27 @@ class TestLevelGen(unittest.TestCase):
         self.assertEqual(a.tiles, b.tiles)
         self.assertEqual([(m.id, m.x, m.y, m.hp) for m in a.monsters], [(m.id, m.x, m.y, m.hp) for m in b.monsters])
 
+    def test_depth10_guardian_always_guards_the_relic(self):
+        """回归：房间中心被随机怪占住时，原实现会整段跳过 → 没有 boss、遗物随机乱丢。
+
+        设计约束：守卫必须生成、遗物必须在守卫身边（看管），但**不能压在守卫脚下** ——
+        深渊守卫正面硬拼几乎打不过，压在脚下等于"必须先杀 boss"，通关就变得不可能。
+        """
+        rng = RNG(20240910)
+        for i in range(120):
+            level = generate(MAX_DEPTH, rng)
+            guards = [m for m in level.monsters if m.id == "deep_guardian"]
+            relics = [(it, x, y) for it, x, y in level.ground if it.kind == "relic"]
+            self.assertEqual(len(guards), 1, f"第 {i} 次：第 10 层必须有且只有一个深渊守卫")
+            self.assertEqual(len(relics), 1, f"第 {i} 次：第 10 层必须有且只有一个遗物")
+            gx, gy = guards[0].x, guards[0].y
+            rx, ry = relics[0][1], relics[0][2]
+            self.assertLessEqual(max(abs(gx - rx), abs(gy - ry)), 2,
+                                 f"第 {i} 次：遗物应放在守卫身边（由它看管）")
+            self.assertNotEqual((rx, ry), (gx, gy),
+                                f"第 {i} 次：遗物不能压在守卫脚下（否则必须先杀掉打不过的 boss）")
+            self.assertNotEqual((rx, ry), level.up, f"第 {i} 次：遗物不能落在上楼梯口")
+
 
 class TestFOV(unittest.TestCase):
     def test_player_visible_and_walls_block(self):
@@ -191,6 +212,62 @@ class TestGameFlow(unittest.TestCase):
             game.command(("wait",))
         self.assertEqual(game.state, "dead")
         self.assertLessEqual(game.player.hp, 0)
+
+    def test_stair_arrival_never_stacks_with_a_monster(self):
+        """回归：楼梯口被怪物占着时，玩家落上去会与怪物同格（怪能打你、你打不到它）。"""
+        game = Game(11, "Arriver", "warrior")
+        bottom = game.level().down
+        game.player.x, game.player.y = bottom
+        game.command(("descend",))
+        self.assertEqual(game.depth, 2)
+        lower = game.level()
+        monster = lower.monsters[0]
+        monster.x, monster.y = lower.up          # 模拟它自己溜达到楼梯口
+
+        game.command(("ascend",))
+        self.assertEqual(game.depth, 1)
+        monster.x, monster.y = lower.up          # 上楼期间下层冻结，它还在那儿
+        game.command(("descend",))
+
+        self.assertEqual((game.player.x, game.player.y), lower.up, "玩家应正常落在楼梯格")
+        self.assertNotEqual((game.player.x, game.player.y), (monster.x, monster.y),
+                            "玩家不能与怪物落在同一格")
+        self.assertIsNone(lower.monster_at(game.player.x, game.player.y))
+        self.assertTrue(lower.is_walkable(monster.x, monster.y), "被挤开的怪物仍应在可走格上")
+
+    def test_debug_commands_stay_in_replay_log(self):
+        """回归：reveal/teleport 改状态又被 pop 掉 → replay 复现不出原局。"""
+        cmds = [("move", 1, 0), ("reveal",), ("teleport", 4), ("wait",),
+                ("teleport", 6), ("move", 0, 1)]
+        game = Game(7, "Debugger", "rogue")
+        for cmd in cmds:
+            game.command(cmd)
+        self.assertIn(("reveal",), game.commands)
+        self.assertIn(("teleport", 4), game.commands)
+        self.assertEqual(game.depth, 6)
+        replayed = replay.run(game.seed, game.commands, game.player.name, game.player.class_id)
+        self.assertEqual(game.state_hash(), replayed.state_hash())
+
+    def test_malformed_commands_are_rejected_gracefully(self):
+        """脏存档 / 回放里的畸形命令不应让整局崩掉，也不应改变状态或进入回放记录。"""
+        bad = [("move",), ("move", 1), ("move", 1, "y"), ("use",), ("use", 0, 1),
+               ("cast",), ("cast", "x", "y"), ("teleport", "x"), ("nope",), (), (5,), "move"]
+        game = Game(1, "Tolerant", "warrior")
+        before = (game.turn, game.state_hash(), list(game.commands))
+        for cmd in bad:
+            game.command(cmd)  # 不应抛异常
+        self.assertEqual(game.turn, before[0], "畸形指令不应消耗回合")
+        self.assertEqual(game.state_hash(), before[1], "畸形指令不应改变状态")
+        self.assertEqual(game.commands, before[2], "畸形指令不应进入回放记录")
+
+    def test_equipment_is_relinked_to_inventory_after_load(self):
+        """回归：读档后 weapon/armor 必须是背包里的同一对象，否则"已装备"标记消失。"""
+        game = Game(12, "Equip", "warrior")
+        self.assertIsNotNone(game.player.weapon)
+        loaded = save.load_game(save.save_game(game))
+        self.assertTrue(any(it is loaded.player.weapon for it in loaded.player.inventory))
+        self.assertTrue(any(it is loaded.player.armor for it in loaded.player.inventory))
+        self.assertEqual(game.state_hash(), loaded.state_hash())
 
 
 class TestRaces(unittest.TestCase):

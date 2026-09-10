@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import time
 
@@ -27,9 +28,13 @@ def save_path(name: str) -> pathlib.Path:
 
 
 def save_game(game: Game) -> pathlib.Path:
+    """原子写：先写同目录临时文件再 os.replace，避免写一半崩溃把存档写坏。"""
     _ensure_dir()
     path = save_path(game.player.name)
-    path.write_text(json.dumps(game.to_json(), ensure_ascii=False, indent=1), encoding="utf-8")
+    blob = json.dumps(game.to_json(), ensure_ascii=False, indent=1)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(blob, encoding="utf-8")
+    os.replace(tmp, path)
     return path
 
 
@@ -58,7 +63,9 @@ def record_roster(game: Game, result: str) -> dict:
     }
     roster = read_roster()
     roster.append(entry)
-    ROSTER.write_text(json.dumps(roster, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp = ROSTER.with_name(ROSTER.name + ".tmp")
+    tmp.write_text(json.dumps(roster, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, ROSTER)
     return entry
 
 
@@ -66,6 +73,7 @@ def read_roster() -> list:
     if not ROSTER.exists():
         return []
     try:
-        return json.loads(ROSTER.read_text(encoding="utf-8"))
+        data = json.loads(ROSTER.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return []
+    return data if isinstance(data, list) else []

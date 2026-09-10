@@ -15,6 +15,7 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SESSION = "dnd_smoke"
 COLS, ROWS = 120, 36
+SAVE_FILE = ROOT / "saves" / "smoke.json"   # 建角名字叫 Smoke → 存档名 smoke.json
 
 
 def tmux(*args: str) -> str:
@@ -45,7 +46,7 @@ def start(args: str = "") -> None:
     time.sleep(2.5)
 
 
-def main() -> int:
+def run_checks() -> dict:
     checks: dict[str, bool] = {}
 
     # ---------- 阶段 A：建角界面（↑↓ 选择职业与种族） ----------
@@ -79,8 +80,6 @@ def main() -> int:
     checks["按键提示(WASD)"] = "WASD" in screen
 
     def turn_now() -> int:
-        for token in capture().replace("回合", " ").split():
-            pass
         line = capture().splitlines()[0]
         digits = [t for t in line.replace("回合", "回合 ").split() if t.isdigit()]
         return int(digits[-1]) if digits else -1
@@ -99,11 +98,12 @@ def main() -> int:
     send("Escape")
     type_text("i")
     pack_screen = capture()
-    checks["背包浮层"] = "背包" in pack_screen
+    # 侧栏也有"背包"标题，必须断言浮层独有的文字，否则永远通过
+    checks["背包浮层"] = "按字母使用" in pack_screen
     send("Escape")
-    type_text("F5")
+    send("F5")                  # 注意：F5 是具名按键，必须用 send；用 type_text 发的是字面 'F''5'
     saved = capture()
-    checks["F5 存档"] = ("存档" in saved) or ("saved" in saved)
+    checks["F5 存档"] = ("Game saved" in saved) and SAVE_FILE.exists()
 
     # ---------- 阶段 D：退出 ----------
     type_text("Q")
@@ -121,6 +121,29 @@ def main() -> int:
     type_text("y")
     time.sleep(0.4)
     tmux("kill-session", "-t", SESSION)
+
+    # ---------- 阶段 F：读档续玩（--latest；回归"UnboundLocalError 崩溃"） ----------
+    start("--latest")
+    latest_screen = capture()
+    checks["--latest 可续玩"] = "Smoke" in latest_screen and "深渊地牢" in latest_screen
+    type_text("Q")
+    type_text("y")
+    time.sleep(0.4)
+    tmux("kill-session", "-t", SESSION)
+
+    return checks
+
+
+def main() -> int:
+    # 冒烟会真的写 saves/smoke.json：先备份，跑完还原/删除，别弄脏玩家的存档目录
+    backup = SAVE_FILE.read_bytes() if SAVE_FILE.exists() else None
+    try:
+        checks = run_checks()
+    finally:
+        if backup is None:
+            SAVE_FILE.unlink(missing_ok=True)
+        else:
+            SAVE_FILE.write_bytes(backup)
 
     print("--- 检查结果 ---")
     ok = True

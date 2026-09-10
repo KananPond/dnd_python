@@ -18,6 +18,8 @@ from .rng import RNG
 FOV_RADIUS = BASE_FOV_RADIUS  # 基础视野半径（种族可加成，见 Player.fov_radius）
 REGEN_TURNS = 12   # 每 N 回合恢复 1 点生命（L2）
 AGGRO_RANGE = 7    # 怪物追击半径：超出后不再穷追（L2，避免全层同时扑上）
+# 相邻 8 方向（固定顺序，保证"挤开挡路怪物"时结果可复现）
+NEIGHBORS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
 FORCE_FIGHT = None  # 预留：强制攻击方向
 
 
@@ -79,18 +81,31 @@ class Game:
 
     # ------------------------------------------------------------- 命令入口
     def command(self, cmd) -> None:
-        """执行一条命令；命令会被记入 commands 以支持回放。"""
-        cmd = tuple(cmd)
+        """执行一条命令；命令会被记入 commands 以支持回放。
+
+        注意：只有"什么都没发生"的失败命令才会被 handler 从 commands 中弹出
+        （否则回放无法复现本局）；畸形命令（脏存档 / 回放输入里的错参数）只报错，
+        不抛出异常，也不消耗回合。
+        """
+        try:
+            cmd = tuple(cmd)
+        except TypeError:
+            self.message(f"未知指令：{cmd!r}", "bad")
+            return
         if self.state != "playing":
             return
-        self.commands.append(cmd)
-        name = cmd[0]
-        handler = getattr(self, f"_cmd_{name}", None)
+        name = cmd[0] if cmd else None
+        handler = getattr(self, f"_cmd_{name}", None) if isinstance(name, str) else None
         if handler is None:
-            self.message(f"未知指令：{name}", "bad")
-            self.commands.pop()
+            self.message(f"未知指令：{name!r}", "bad")
             return
-        handler(*cmd[1:])
+        self.commands.append(cmd)
+        try:
+            handler(*cmd[1:])
+        except (TypeError, ValueError, IndexError, KeyError) as exc:
+            self.message(f"无效指令 {cmd!r}：{exc}", "bad")
+            if self.commands and self.commands[-1] == cmd:
+                self.commands.pop()
 
     # --- 移动 ---
     def _cmd_move(self, dx: int, dy: int) -> None:
@@ -111,6 +126,32 @@ class Game:
     def _cmd_wait(self) -> None:
         self._end_turn()
 
+    # --- 落点：楼梯口可能被怪物占着 ---
+    def _free_neighbor(self, level: Level, x: int, y: int):
+        """(x, y) 周围第一个"可走且没有怪物"的格子，找不到返回 None。"""
+        for dx, dy in NEIGHBORS:
+            nx, ny = x + dx, y + dy
+            if level.is_walkable(nx, ny) and level.monster_at(nx, ny) is None:
+                return nx, ny
+        return None
+
+    def _arrive_at(self, x: int, y: int) -> None:
+        """把玩家放到 (x, y)。
+
+        楼梯格的落点可能被怪物占着（怪物会自由走到楼梯口），直接落上去会造成玩家与
+        怪物同格：怪物每回合白打你，而移动攻击要求"目标格 != 自身格"，你打不到它。
+        因此先把挡路的怪物挤到相邻空格（或随机空格），再让玩家落位。
+        """
+        level = self.level()
+        blocker = level.monster_at(x, y)
+        if blocker is not None:
+            spot = self._free_neighbor(level, x, y) or level.free_tile(
+                self.rng, avoid={(x, y)}, min_distance_from=(x, y), min_distance=3)
+            if spot:
+                blocker.x, blocker.y = spot
+                self.message(f"{blocker.name}被挤到了一旁。", "info")
+        self.player.x, self.player.y = x, y
+
     def _cmd_descend(self) -> None:
         level = self.level()
         if (self.player.x, self.player.y) != level.down:
@@ -120,7 +161,7 @@ class Game:
         self.depth = min(MAX_DEPTH, self.depth + 1)
         self.player.depth = self.depth
         new_level = self.level()
-        self.player.x, self.player.y = new_level.up
+        self._arrive_at(*new_level.up)
         self.message(f"你下到了地牢第 {self.depth} 层。", "good")
         self._end_turn()
 
@@ -137,7 +178,7 @@ class Game:
         self.depth -= 1
         self.player.depth = self.depth
         upper = self.level()
-        self.player.x, self.player.y = upper.down or upper.up
+        self._arrive_at(*(upper.down or upper.up))
         self.message(f"你回到了地牢第 {self.depth} 层。", "info")
         self._end_turn()
 
@@ -222,20 +263,20 @@ class Game:
         self._end_turn()
 
     # --- 调试 / 考据工具 ---
+    # 注意：这两个命令**必须留在 commands 里**（不要 pop）——它们会改变状态
+    # （explored / depth / 坐标），弹掉就再也回放不出这一局了。
     def _cmd_reveal(self) -> None:
         level = self.level()
         level.explored = bytearray([1]) * (level.w * level.h)
         self.message("[调试] 已显示整层地图。", "warn")
-        self.commands.pop()
 
     def _cmd_teleport(self, depth: int) -> None:
         self.depth = max(1, min(MAX_DEPTH, int(depth)))
         self.player.depth = self.depth
         level = self.level()
-        self.player.x, self.player.y = level.up
+        self._arrive_at(*level.up)
         self.message(f"[调试] 已传送到第 {self.depth} 层。", "warn")
         self._refresh_fov()
-        self.commands.pop()
 
     # ------------------------------------------------------------ 战斗结算
     def _apply_offensive_effect(self, effect: str, power: str, rng_range: int = 8, spell_name: str = "") -> None:
