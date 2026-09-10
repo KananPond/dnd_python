@@ -7,6 +7,8 @@
 - 前端：Python 标准库 **curses**（零第三方依赖，无 pip 也能跑）
 - 后端：自研确定性内核（seeded PRNG、无 random/time 依赖），TUI / 机器人 / 回放测试共用同一份逻辑
 
+> 📖 **第一次玩？看 [`docs/how-to-play.md`](docs/how-to-play.md)**（界面图解、键位总表、生存要点、常见问题）。
+
 ## 快速开始
 
 ```bash
