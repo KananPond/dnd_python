@@ -34,8 +34,9 @@ dependencies = []
 preview = ["Pillow>=9"]
 
 [project.urls]
-Documentation = "https://github.com/OWNER/dnd#readme"
-Source = "https://github.com/OWNER/dnd"
+Homepage = "https://gitee.com/shenzhenshiguanfminquxinhujiedao/dnd_python"
+Source = "https://github.com/KananPond/dnd_python"
+"Bug Tracker" = "https://github.com/KananPond/dnd_python/issues"
 
 [project.scripts]
 dnd = "dnd.__main__:main"
