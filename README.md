@@ -115,6 +115,7 @@ out/                 机器人跑批与界面预览输出（gitignore）
 | [`docs/reimplementation-plan.md`](docs/reimplementation-plan.md) | 开发者 | 技术选型与理由、目录与模块依赖、保真度策略与矩阵、M0–M7 进度、测试与质量、决策留痕（含废弃的 Web 方案对照） |
 | [`docs/research-dossier.md`](docs/research-dossier.md) | 考据 | PLATO《dnd》史料底稿、A/B/C 可信度分级、C 类未确证清单、核实路线与链接 |
 | [`docs/open-source-compliance.md`](docs/open-source-compliance.md) | 开源/法务 | 开源合规检查（商标、素材、依赖、隐私逐项证据）、双协议建议与否决理由、与 PLATO 原版的法律关系、发布前清单 |
+| [本文「AI 参与声明」](#ai-参与声明工具与来源) | 所有人 | 生成这些文件的模型（DeepSeek‑V4.1‑Flash，high 思考强度）、运行框架（DSH `0.1.2-rc.1`）、所用插件与发布情况 |
 | [`dnd_PLATO_1975_检索报告.md`](dnd_PLATO_1975_检索报告.md) | 考据 | 首轮联网检索报告（结论速览、基本档案、PLATO 地牢游戏谱系、检索局限） |
 
 ## 验证
@@ -134,6 +135,23 @@ python3 tools/preview.py                   # 把界面渲染成 PNG（改界面�
 
 改界面的工作流：`test_tui.py` 断言**布局关系**（谁压谁、有没有越界），`tools/preview.py` 给出**观感**
 （渲染成 PNG，12 个场景：主界面/背包/法术/帮助/名人堂/结算/建角/最小尺寸/窄窗口/过小窗口/ASCII 兜底/放大）。
+
+## 远端仓库
+
+本仓库同时发布在两个平台，内容一致（`main` 本地分支 → 两端 `master` 分支）：
+
+| 平台 | 地址 |
+|---|---|
+| Gitee（主） | https://gitee.com/shenzhenshiguanfminquxinhujiedao/dnd_python |
+| GitHub | https://github.com/KananPond/dnd_python |
+
+```bash
+git remote -v                     # gitee / github 两个远端
+git push gitee main:master        # 推 Gitee（需要 Gitee 账号凭据）
+git push github main:master       # 推 GitHub（需要 GitHub 账号凭据；本机当前网络不通时会失败）
+```
+
+两个远端各自只保存一份历史，`--force` 请谨慎使用：Gitee 与 GitHub 的 `master` 上可能有对方没有的提交。
 
 内置的确定性保证：同一 `--seed` ＋ 同一操作序列，跨进程得到完全一致的状态哈希（`Game.state_hash()`）；
 本局执行过的命令（含 `--debug` 的 `x`/`t`）都会完整记进 `Game.commands`，因此 `replay.run(seed, game.commands)` 能原样复现。
@@ -191,3 +209,112 @@ Wizards of the Coast **均无关联，未获其授权或背书**。
 
 完整的逐项检查证据（商标扫描命令、依赖审计、凭据与隐私扫描、与 PLATO 原版的法律关系分析、
 协议选型与否决理由、发布前清单）见 **[`docs/open-source-compliance.md`](docs/open-source-compliance.md)**。
+
+## AI 参与声明（工具与来源）
+
+> **一句话**：本仓库的代码与文档是 **AI 自己"调研 → 计划 → 开发 → 审查"多轮循环跑出来的结果，
+> 全程没有人类审查过代码**；全部内容都是 **DeepSeek‑V4.1‑Flash** 在 **DeepSeek Harness（DSH）** 框架内产生的。
+> 人类只做了两件事：提出需求，以及回答一个关键选择的提问（详见下方「人机边界」）。
+
+### 人机边界（请务必按字面理解）
+
+| 角色 | 实际做了什么 | 没做什么 |
+|---|---|---|
+| **AI（DeepSeek‑V4.1‑Flash in DSH）** | 自主完成需求拆解、调研（读仓库、读数据表、扫商标与依赖、查 npm 发布状态）、定方案、写代码与文档、自己设计验证手段、跑测试与伪终端实验、发现并修掉自己引入的缺陷、最后自己写审查报告 | —— |
+| **人类** | ① 提出需求（"要通用启动脚本 + 要开源合规建议"）；② 在 AI 提问时做了一个关键选择（协议选型、Windows 侧范围）；③ 被告知验证命令 | **没有审阅任何一行代码、没有审阅任何一份文档、没有做人工 code review，也没有逐条复核 AI 的结论** |
+| **自动化流程** | 单元测试、伪终端冒烟、启动脚本自检（`./play.sh --check`）、真实伪终端里的端到端交互实验——都由 AI 自己编写、自己执行、自己判读 | 权威评审者不是人类，所以这些验证**不能替代人工审查**；正确性请使用者自行判断 |
+
+所以：请把它**当作"未经人工审查的 AI 产出"**来对待；要用在严肃场景，请自己安排 review。
+
+### 过程留痕（多轮 调研 → 计划 → 开发 → 审查）
+
+整个工作只依赖**上下文 + 工具返回**推进，中途没有人类纠偏；下面每一轮都能在会话记录与仓库状态里对上：
+
+| 阶段 | 做了什么 |
+|---|---|
+| **调研** | `ls`/`find`/`read` 摸清仓库与模块边界；核对 `dnd/data/*.json` 的 43 条内容；跑商标/专有名词扫描、依赖审计、凭据与隐私扫描、git 历史与作者检查；用 `npm view` 查框架与插件的真实发布状态 |
+| **计划** | 先落 `todo_write` 计划再动手；把"协议选型 / Windows 侧范围"作为唯一不确定项，用一次提问收敛（而不是猜） |
+| **开发** | 134 次 shell、54 次 `edit`、5 次 `write`、31 次 `read`、1 次 `grep`——本会话共 **229 次工具调用 / 3 个用户回合** |
+| **审查（AI 自查）** | 53 项单元测试 + 19 项伪终端冒烟全绿；自建伪终端夹具做端到端实验；边界场景（无 `curses` 的解释器、`DND_PYTHON` 指向错误路径、从其他目录调用、70×20 与 62×18 小终端）；**在这一步抓出并修掉了两个自己引入的真实缺陷**；最后产出 `docs/open-source-compliance.md` 作为审查报告，含"仍有待处理项"清单 |
+
+> 上一轮的启动脚本 + 合规工作就是一次完整循环：第一版脚本**通过了语法检查**，但伪终端实验发现它其实会吞掉键盘输入、
+> 且尺寸提示是假值——这属于审查阶段发现的问题，两次修完后才全绿。命令与证据见上文「验证」一节与
+> [`docs/open-source-compliance.md`](docs/open-source-compliance.md)。
+
+**关于更早的提交**（初始提交、TUI 大修、文档校正等）：据项目所有者说明，它们同样是 DeepSeek‑V4.1‑Flash 在 DSH 内
+生成的结果、同样未经人类审查；但本 AI 未参与那些会话，无法为其过程作证——可核对的是提交历史（`git log`，
+作者目前是一个本机身份 `eudora@localhost`，尚未换成公开身份）。
+
+### 环境与配置
+
+| 项 | 值 |
+|---|---|
+| **模型** | **DeepSeek‑V4.1‑Flash**（DSH 内的模型 id：`deepseek-flash`，provider：`deepseek-official`） |
+| **思考强度** | **high**（`reasoningEffort: high`，即高思考强度模式） |
+| **运行框架** | **DeepSeek Harness（DSH）** CLI `@deepseek-ai/dsh` **0.1.2‑rc.1**（MIT；预发布版） |
+| **交互方式** | DSH Web GUI，本机 `http://127.0.0.1:8080` |
+| **代理预设** | `standard` |
+| **文件权限** | `workspace-write`（只能改本工作区）；审批策略 `ask` |
+| **生成范围** | `play.sh`、`LICENSE`、`pyproject.toml`、`dnd/data/LICENSE-CC0.txt`、`docs/open-source-compliance.md`，以及对 `README.md`、`.gitignore`、`docs/how-to-play.md`、`docs/reimplementation-plan.md`、`dnd/data/*.json` 的增补 |
+
+上表版本号取自本机实际安装的 `@deepseek-ai/dsh` 与 `profiles/web/node_modules`（非估算）；各包的发布情况于 2026‑09‑10
+用 `npm view <pkg> version / dist-tags` 向 npm registry 实际查询得到（查询需联网，因此只在声明"已发布/未发布"时使用）。
+
+### 使用的插件
+
+以下插件为**当时该 DSH Web 配置中实际加载的插件**（profile `web`），仅影响"代理怎么工作"，**都不是本项目的依赖**
+（本项目游戏本体依旧零第三方依赖）。它们来自两类来源：DSH 官方的 `@deepseek-ai/*`（随 CLI 提供），
+以及第三方社区作者的 `@linxin666/*` 插件与本地主题插件。版本号取自本机 `profiles/web/node_modules`。
+
+**① 官方框架侧（本次真正动手用的能力）**
+
+| 插件 | 版本 | 作用 | 发布情况 |
+|---|---|---|---|
+| `@deepseek-ai/dsh`（CLI 本体） | 0.1.2‑rc.1 | 运行框架：会话、工具循环、权限与沙箱 | npm 公开；`latest`/`next` = `0.1.5‑rc.1`，本机所装为较早的 rc |
+| `@deepseek-ai/dsh-base` | 随 CLI 内置 | 核心工具集：shell 执行、文件读写/编辑、内容搜索、任务清单 | 随 CLI 发行，不在 npm 单独发布 |
+| `@deepseek-ai/dsh-web-app` | 随 CLI 内置 | Web 应用外壳（本次即通过它在本机网页界面里交互） | 随 CLI 发行，不在 npm 单独发布 |
+
+**② 第三方插件包 `@linxin666/dsh-web-all@0.3.20`**（一个聚合包，下面是它带入的插件；npm 公开，本机版本与 registry 一致）
+
+| 插件 | 本次是否参与 | 作用 |
+|---|---|---|
+| `dsh-client-ui-plugin-manager` | 仅界面 | 图形化插件管理 |
+| `dsh-client-ui-community-plugins` | 仅界面 | 社区插件索引数据源 |
+| `dsh-client-ui-market` | 仅界面 | 插件市场 |
+| `dsh-client-ui-task-board` | 仅界面 | 任务看板（host‑authoritative） |
+| `dsh-client-ui-git-graph` | 仅界面 | Git 提交图 |
+| `dsh-client-ui-model-capabilities` | 仅界面 | 模型能力面板 |
+| `dsh-client-ui-preset-center` | 仅界面 | 代理预设中心 |
+| `dsh-client-ui-web-ui-settings` | 仅界面 | 界面设置 |
+| `dsh-client-ui-skin-center` | 仅界面 | 主题/皮肤中心 |
+| `dsh-client-ui-skill-explorer` | 仅界面 | 技能浏览器 |
+| `dsh-i18n` | 仅界面 | 界面多语言 |
+| `dsh-doctor` | 未使用 | profile 事务化救援模式 |
+| `dsh-usage` | 未使用 | 用量统计 |
+| `dsh-session-archive` | 未使用 | 会话归档 |
+| `dsh-remote-web-ui`、`dsh-ssh` | 未使用 | 远程 Web UI / SSH 接入 |
+| `dsh-tool-describe-image` | 未使用 | 面向模型的 `describe_image` 工具 |
+| `dsh-pet` | 未使用（设置里 `visible: false`） | 桌面宠物 |
+| `dsh-liangshen` | 未启用（本次预设为 `standard`） | 「梁神」双阶段代理预设 |
+
+**③ 其他同样已加载的插件**
+
+| 插件 | 版本 | 作用 | 发布情况 |
+|---|---|---|---|
+| `dsh-better-sidebar` | 0.19.0‑alpha.1 | VSCode 风格右侧边栏（资源管理器/编辑器） | npm 公开；本机装的是 `alpha` 通道版本，`latest` 已到 `0.19.0` |
+| `dsh-anthropic-editorial` | 0.1.0（MIT） | Anthropic 编辑风主题：暖米白画布、陶土强调色、衬线标题 | **未发布**：以 `link:` 挂载本地目录（作者本机 `dsh_home/` 下），npm 查询为 404 |
+
+**能力使用说明**：本次实际动手只用了 `@deepseek-ai/dsh-base` 的 shell 执行、文件读写/编辑、内容搜索与任务清单；
+上面所有 UI 类插件只影响交互观感与信息展示（第 ② 组一律"仅界面"），未参与任何文件生成。
+**未使用**任何技能（skill）、子代理（subagent）、Ralph 循环或 workflow 编排——全部工作在本会话内直接完成。
+
+**额外说明（供读者对照）**：仓库里被 `.gitignore` 忽略的 `.mimosa/` 目录是此前另一轮会话留下的插件产物
+（hooks + 任务复核，`mimosa-task-review/v2`），它**不属于本项目**、不会入库，也不在本轮使用的插件清单里；
+列出它只是为了避免读者在旧工作区里看到它时产生困惑。
+
+**使用约束**：本声明的语义是"这些文件由上述模型在上述环境下生成，并经过 AI 自己的实机验证，
+**但从未经过人类审查**"——验证手段见上文「验证」一节（53 项单元测试、19 项伪终端冒烟、
+伪终端里跑通 `play.sh` 全流程、四种终端尺寸实测）。这些验证提高了可信度，但**不等于正确性保证**：
+自动化测试由同一个模型编写，天然会漏掉它自己没想到的情况。
+因此：采用前请自行审查（尤其 `play.sh` 这类要直接在你机器上执行、会改环境的脚本）。
+AI 生成不改变许可：本仓库代码与文档仍是 MIT、内容数据仍是 CC0-1.0；同时不构成对代码正确性、安全性或适用性的担保。
