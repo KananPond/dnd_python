@@ -15,19 +15,38 @@
 ## 快速开始
 
 ```bash
-cd /mnt/d/code_study/DND
-python3 -m dnd                                   # 建角界面 → 开始游戏
-python3 -m dnd --seed 42 --name Aria --class wizard --race elf   # 固定种子/职业/种族
+./play.sh                                         # 唯一入口：Linux / macOS / WSL2 通用（自动查 Python、终端、编码）
+./play.sh --check                                 # 只做环境自检并打印报告，不启动游戏（报 bug 时请附上它）
+./play.sh --seed 42 --name Aria --class wizard --race elf   # 固定种子/职业/种族；参数原样转发给游戏
 # 建角界面：输入姓名 → ↑↓ 选职业 → Tab/←→ 切到种族栏 → ↑↓ 选种族 → 回车开始
-python3 -m dnd --latest                          # 读最近存档
-python3 -m dnd --list-saves                      # 列出存档
-python3 -m dnd --roster                          # 打印名人堂
-python3 -m dnd --headless-demo 300 --seed 5      # 无终端环境自检（跑 300 回合）
-python3 -m dnd --modern --debug                  # 现代模式（免死一次）+ 调试键
-python3 -m dnd --ascii                           # 框线/进度条退回纯 ASCII（中文终端把 ─│ 当两格宽时用）
+./play.sh --latest                                # 读最近存档
+./play.sh --list-saves                            # 列出存档
+./play.sh --roster                                # 打印名人堂
+./play.sh --headless-demo 300 --seed 5            # 无终端环境自检（跑 300 回合）
+./play.sh --modern --debug                        # 现代模式（免死一次）+ 调试键
+./play.sh --ascii                                 # 框线/进度条退回纯 ASCII（中文终端把 ─│ 当两格宽时用）
 ```
 
-环境：Python ≥ 3.10（开发用 3.14）、支持 curses 的终端（Linux / macOS / WSL，Windows 原生终端不支持）。
+不想用脚本也可以直接调包（效果完全一样，脚本只是帮你把环境问题提前拦住）：
+
+```bash
+python3 -m dnd --seed 42
+```
+
+### 平台支持
+
+| 系统 | 怎么跑 | 说明 |
+|---|---|---|
+| **Linux** | `./play.sh` | 需要 `python3`（≥ 3.10）。发行版若未自带：`sudo apt install -y python3` |
+| **macOS** | `./play.sh` | 系统自带 `python3` 可能只有 3.9；用 `brew install python` 装新的，或 `DND_PYTHON=/opt/homebrew/bin/python3 ./play.sh` |
+| **Windows** | **必须用 WSL2** | WSL 终端里 `cd` 到仓库后 `./play.sh`。Windows 原生 cmd/PowerShell/Git Bash **不支持**（原生 Python 没有标准库 `curses`）。安装：管理员 PowerShell 执行 `wsl --install -d Ubuntu`，重启后进入 `wsl` |
+
+`play.sh` 会依次检查：平台（原生 Windows 直接给出 WSL2 安装指引）→ Python 版本与 `curses` → 是否为真实终端 →
+终端编码（不是 UTF-8 且系统有可用 UTF-8 locale 时自动补上，避免中文乱码）→ 窗口尺寸（< 62×18 提示调大、
+< 100×30 提示不显示侧栏）→ 然后才 `exec python3 -m dnd`。任何一步不过都给出可操作的中英文提示，
+**不会留下一个意义不明的 traceback**。自检失败时脚本以退出码 2 结束。
+
+环境：Python ≥ 3.10（开发用 3.14）、支持 curses 的终端（Linux / macOS / WSL2，Windows 原生终端不支持）。
 终端建议 ≥ 100×30（宽度 ≥ 100 时右侧显示**冒险者档案**：生命/法力/经验条、视野内敌人、装备、属性、背包）。
 
 界面：反白标题栏（深度进度条 + 回合）、体征栏（生命/法力/经验条）、带边框的地图视口（火把式远近明暗 + 记忆雾）、
@@ -59,11 +78,12 @@ python3 -m dnd --ascii                           # 框线/进度条退回纯 ASC
 ## 目录结构
 
 ```
+play.sh              跨平台启动脚本（Linux / macOS / WSL2 通用；环境自检 + 启动，含 --check）
 dnd/                 游戏包（python3 -m dnd）
   rng.py             确定性 PRNG（xoshiro256**，可序列化）
   dice.py            掷骰表达式
   content.py         JSON 数据表加载（带 _meta 出处与可信度）
-  data/*.json        职业 / 种族 / 怪物 / 物品 / 法术
+  data/*.json        职业 / 种族 / 怪物 / 物品 / 法术（CC0-1.0，见 dnd/data/LICENSE-CC0.txt）
   level.py           地图生成（房间+走廊、门、楼梯、分层放置、连通性校验）
   fov.py             视野（递归阴影投射）
   entities.py        玩家 / 怪物 / 物品
@@ -94,11 +114,13 @@ out/                 机器人跑批与界面预览输出（gitignore）
 | [`docs/how-to-play.md`](docs/how-to-play.md) | 玩家 | 界面图解、键位总表、建角流程、生存要点、FAQ |
 | [`docs/reimplementation-plan.md`](docs/reimplementation-plan.md) | 开发者 | 技术选型与理由、目录与模块依赖、保真度策略与矩阵、M0–M7 进度、测试与质量、决策留痕（含废弃的 Web 方案对照） |
 | [`docs/research-dossier.md`](docs/research-dossier.md) | 考据 | PLATO《dnd》史料底稿、A/B/C 可信度分级、C 类未确证清单、核实路线与链接 |
+| [`docs/open-source-compliance.md`](docs/open-source-compliance.md) | 开源/法务 | 开源合规检查（商标、素材、依赖、隐私逐项证据）、双协议建议与否决理由、与 PLATO 原版的法律关系、发布前清单 |
 | [`dnd_PLATO_1975_检索报告.md`](dnd_PLATO_1975_检索报告.md) | 考据 | 首轮联网检索报告（结论速览、基本档案、PLATO 地牢游戏谱系、检索局限） |
 
 ## 验证
 
 ```bash
+./play.sh --check                          # 最快的一道体检：平台/Python/curses/终端编码/尺寸，一次全打印
 python3 -m unittest discover -s tests -v   # 53 项：内核 27 / TUI 布局 22 / CLI 读档 4（含伪终端启动真实 TUI）
 python3 tools/pty_smoke.py                 # 19 项 TUI 冒烟：启动、渲染、按键、浮层、建角、F5 存档、读档续玩、退出
 python3 -m dnd --headless-demo 300 --seed 5
@@ -141,6 +163,31 @@ python3 tools/preview.py                   # 把界面渲染成 PNG（改界面�
 - 开发注意：`ui/theme.py` 在模块级 import curses，新增 UI 引用请照 `__main__.py` 的写法**延迟导入**，
   否则 `--headless-demo` / `--list-saves` 在无 curses 的环境（Windows 原生 Python）会直接崩。
 
-## 合规
+## 许可与合规
 
-不使用 TSR/WotC 的商标与专有名词；怪物与物品采用公有领域通用奇幻词汇或自创名。
+**双协议**（代码与数据分开，各自用最合适的协议）：
+
+| 范围 | 协议 | 文件 |
+|---|---|---|
+| 代码：`dnd/**/*.py`、`tests/`、`tools/`、`play.sh`、`pyproject.toml` | **MIT** | [`LICENSE`](LICENSE) |
+| 内容数据：`dnd/data/*.json`（职业/种族/怪物/物品/法术表） | **CC0-1.0**（公共领域） | [`dnd/data/LICENSE-CC0.txt`](dnd/data/LICENSE-CC0.txt) |
+| 文档：`README.md`、`docs/**`、检索报告 | MIT | 同 `LICENSE` |
+
+数据表单独用 CC0 是**故意**的：它们是本项目最希望被别人替换、再创作、贴到自己项目里的部分，
+CC0 取消了署名与传染义务，你可以直接改数值、加怪物、做成自己的版本，无需声明来源（当然欢迎注明）。
+代码用 MIT 则是最省事的宽松协议：可 fork、可商用、可闭源再发行，只需保留版权声明。
+
+**与原版的关系**：本项目是 1975 年 PLATO 系统上《dnd》(Gary Whisenhunt & Ray Wood) 的**非官方**现代复刻。
+未使用原版 TUTOR 源码、原版数值或任何原版素材——只复刻了不受著作权保护的玩法骨架，内容表全部为本项目再创作
+（每张表的 `_meta` 都标了 `confidence: invented`）。本项目与原作者、PLATO/cyber1 社区及
+Wizards of the Coast **均无关联，未获其授权或背书**。
+
+**商标**：仓库内不使用 TSR/WotC 的商标与专有名词（不出现 D&D 品牌标识）；怪物与物品采用公有领域通用奇幻词汇或自创名
+（4 职业 / 4 种族 / 12 怪物 / 18 物品 / 5 法术共 43 条内容已逐条核对）。
+标题 `dnd` 属于对原作的指称性使用，不声称任何商标权。
+
+**依赖**：游戏本体零第三方依赖（仅 Python 标准库）；`Pillow` 只被开发工具 `tools/preview.py` 使用，已标为可选依赖
+（`pip install ".[preview]"`）。无网络行为、不回传统计、存档仅本地 JSON。
+
+完整的逐项检查证据（商标扫描命令、依赖审计、凭据与隐私扫描、与 PLATO 原版的法律关系分析、
+协议选型与否决理由、发布前清单）见 **[`docs/open-source-compliance.md`](docs/open-source-compliance.md)**。

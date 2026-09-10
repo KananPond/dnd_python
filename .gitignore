@@ -5,6 +5,15 @@ __pycache__/
 .venv/
 venv/
 
+# 打包与构建产物（pyproject.toml 之后）
+build/
+dist/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
 # 运行期数据：存档与名人堂由玩家产生，不入库
 saves/*.json
 !saves/.gitkeep

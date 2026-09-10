@@ -1,6 +1,8 @@
 {
   "_meta": {
     "confidence": "invented",
+    "license": "CC0-1.0",
+    "license_note": "本表内容数据以 CC0-1.0 公共领域奉献发布（见 dnd/data/LICENSE-CC0.txt），代码部分为 MIT（见 LICENSE）。",
     "note": "怪物名使用公有领域的通用奇幻词汇（避开 TSR/WotC 专有名词）；数值为复刻自定，按深度分层。",
     "source": "docs/research-dossier.md#四"
   },

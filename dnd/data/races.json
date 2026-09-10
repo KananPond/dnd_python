@@ -1,6 +1,8 @@
 {
   "_meta": {
     "confidence": "invented",
+    "license": "CC0-1.0",
+    "license_note": "本表内容数据以 CC0-1.0 公共领域奉献发布（见 dnd/data/LICENSE-CC0.txt），代码部分为 MIT（见 LICENSE）。",
     "note": "原版 dnd 是否有种族系统不可考（见 docs/research-dossier.md 第四节 C 类）。本表为复刻自定：只改属性调整、起始生命/法力与视野半径，可整体替换。",
     "source": "docs/research-dossier.md#四"
   },

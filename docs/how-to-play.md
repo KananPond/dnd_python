@@ -4,25 +4,38 @@
 
 ## 0. 前置条件
 
-- **必须是真实终端**：Linux / macOS 的终端，或 Windows 上的 **WSL** 终端（Windows 原生 cmd/PowerShell 不支持 curses）。
-- Python ≥ 3.10（本机 3.14）。**不需要装任何第三方包**。
+- **必须是真实终端**：Linux / macOS 的终端，或 Windows 上的 **WSL2** 终端（Windows 原生 cmd/PowerShell **不支持** curses）。
+- Python ≥ 3.10（开发用 3.14）。**不需要装任何第三方包**。
 - 建议终端窗口 **≥ 100 列 × 30 行**（宽度 ≥ 100 会多出一整栏"冒险者档案"；最小可运行尺寸是 62×18）。
 - 本 DSH 网页界面里跑不了 TUI —— 请在你自己的终端窗口里执行下面的命令。
 
 ## 1. 启动
 
+仓库根目录下有一个**跨平台启动脚本**，Linux / macOS / WSL2 用法完全一样：
+
 ```bash
-cd /mnt/d/code_study/DND
+cd <仓库目录>        # 例如 /mnt/d/code_study/DND、~/code/dnd
+./play.sh            # 启动游戏
+./play.sh --check    # 只想看环境报告、不启动游戏（排障第一步）
+```
+
+脚本会先替你把常见坑拦住：平台（原生 Windows 直接给 WSL2 安装步骤）→ Python 版本与 `curses` →
+是否真实终端 → 终端编码（不是 UTF-8 且系统有可用 UTF-8 locale 时自动补上）→ 窗口尺寸，
+全部通过后才启动游戏。任何一步不通过都会给出中英文的**可操作**提示，退出码 2。
+
+不想用脚本、或脚本都过不了自检时，直接调包也是一样的：
+
+```bash
 python3 -m dnd
 ```
 
-第一次会进入**建角界面**。常用变体：
+第一次会进入**建角界面**。常用变体（`./play.sh` 与 `python3 -m dnd` 参数完全一致）：
 
 ```bash
-python3 -m dnd --seed 42 --name Aria --class wizard --race elf   # 跳过建角，固定种子
-python3 -m dnd --modern        # 现代模式：可免死一次
-python3 -m dnd --latest        # 接着最近一次存档玩
-python3 -m dnd --debug         # 调试键：x 显示全图，t 传送
+./play.sh --seed 42 --name Aria --class wizard --race elf   # 跳过建角，固定种子
+./play.sh --modern        # 现代模式：可免死一次
+./play.sh --latest        # 接着最近一次存档玩
+./play.sh --debug         # 调试键：x 显示全图，t 传送
 ```
 
 ## 2. 建角（30 秒）
@@ -131,7 +144,12 @@ python3 -m dnd --roster         # 打印名人堂
 
 **提示"终端窗口太小"？** 放大窗口到至少 62×18，建议 ≥100×30。
 
-**在 Windows 的 cmd/PowerShell 里报错？** 那里没有 curses，请在 WSL 终端里跑（`wsl` 进入后 `cd /mnt/d/code_study/DND`）。
+**在 Windows 的 cmd/PowerShell 里报错？** Windows 原生 Python 没有标准库 `curses`，那里跑不了。请在 **WSL2** 终端里跑：
+先以管理员身份打开 PowerShell 执行 `wsl --install -d Ubuntu`（装完重启），然后在 Windows 终端里输入 `wsl` 进入发行版，
+再 `cd` 到仓库目录执行 `./play.sh`。`./play.sh` 在原生 Windows 环境下也会直接给出这段指引。
+
+**不确定环境哪里不对？** 先跑 `./play.sh --check`：它会一次打印平台、解释器版本、curses 是否可用、
+是否是真实终端、`TERM`/编码/locale、窗口尺寸、存档目录。报 bug 时请把这份报告一起贴上。
 
 **没有图形界面（比如 SSH/CI）想验证？**
 ```bash

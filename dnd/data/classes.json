@@ -1,6 +1,8 @@
 {
   "_meta": {
     "confidence": "invented",
+    "license": "CC0-1.0",
+    "license_note": "本表内容数据以 CC0-1.0 公共领域奉献发布（见 dnd/data/LICENSE-CC0.txt），代码部分为 MIT（见 LICENSE）。",
     "note": "原版 dnd 的职业/属性/经验表不可考（见 docs/research-dossier.md 第四节 C 类）。本表为复刻自定，可在不改代码的前提下整体替换。",
     "source": "docs/research-dossier.md#四"
   },

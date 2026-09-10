@@ -35,6 +35,9 @@
 
 ```
 DND/
+├─ play.sh               跨平台启动脚本（POSIX sh：Linux / macOS / WSL2；自检 + 启动，支持 --check）
+├─ pyproject.toml        包元数据（协议 MIT、requires-python、可选依赖 Pillow、console script 入口）
+├─ LICENSE               代码协议（MIT）｜dnd/data/LICENSE-CC0.txt 数据协议（CC0-1.0）
 ├─ dnd/                  游戏包（python3 -m dnd）
 │  ├─ rng.py             确定性 PRNG（xoshiro256**，状态可 JSON 序列化）
 │  ├─ dice.py            掷骰表达式（'2d6+1' / 'd8' / '3'）
@@ -53,10 +56,28 @@ DND/
 │  └─ __main__.py        命令行入口
 ├─ tests/                test_core.py / test_tui.py / test_cli.py
 ├─ tools/                sim.py（机器人跑批）pty_smoke.py（伪终端冒烟）preview.py（渲染 PNG）
-├─ docs/                 research-dossier.md（史料）reimplementation-plan.md（本文）how-to-play.md
+├─ docs/                 research-dossier.md（史料）reimplementation-plan.md（本文）how-to-play.md open-source-compliance.md
 ├─ saves/                roster.json 与玩家存档（存档不入库，见 .gitignore）
 └─ out/                  机器人跑批与预览输出（gitignore）
 ```
+
+**启动路径的设计**（为什么是"一个脚本 + 一条命令"，而不是给每个平台写一份）：
+
+- `./play.sh` 是唯一推荐入口，`python3 -m dnd` 是等价的底层入口（脚本只做前置校验，不做别的事）。
+- 用 **POSIX sh**（`#!/bin/sh`，只用 `test`/`case`/`printf`/`sed -n Np`），因为 macOS 的 `/bin/sh` 是 bash 3.2 且
+  自带 `readlink` 没有 `-f`、`dirname` 行为也略有差异 —— 不用任何 GNU 扩展，才能"mac 上没测过也大概率能跑"。
+- **刻意不做 Windows 原生适配**：原生 Python 没有标准库 `curses`，要支持就得引入 `windows-curses`，与"零第三方依赖"
+  的立项原则冲突。Windows 统一走 WSL2，脚本在原生 Windows（MINGW/MSYS/CYGWIN）下直接给出 `wsl --install` 指引并以 2 退出。
+- 脚本校验顺序固定为：平台 → 解释器版本/`curses` → 是否真实终端 → 编码（必要时补 UTF-8 locale）→ 窗口尺寸 → 启动。
+  这样每一个失败都对应一句明确的修法，而不是留一个 traceback。
+- `--check` 走"只报告不启动"路径，且刻意不改动终端：正是跑不起来的时候才最需要它，它会如实报告依赖是否可用，
+  以及"当前不是真实终端所以只能自检"。
+- 两个必须守住的实现细节（都踩过坑，写进 `play.sh` 注释）：
+  1. **脚本内不能用 here-document 喂 python**：`sh` 的 here-doc 从脚本自身的 stdin 读取，会把终端键盘输入吞掉，
+     游戏就收不到按键了。所有内联 python 一律用 `-c '...'`。
+  2. **终端尺寸必须取 `/dev/tty`**：脚本用 `$( )` 捕获 python 输出时 fd 1 已被接到管道上，
+     在 fd 1 上取尺寸必然 `ENOTTY`（只能拿到假的 80×24，尺寸提示就完全不可信）。
+- 启动脚本本身不需要测试就能保持正确性：它只做校验和转发，游戏逻辑一行都不碰。
 
 **模块依赖方向**（无环）：`dice → rng`；`entities/content → dice`；`level → entities`；`game → level/entities/replay 无关`；
 `ui/* → game/level/entities`；`tools/*` 只依赖包内公开接口。`ui/theme.py` 在模块级 import curses，
@@ -109,6 +130,7 @@ DND/
 **验证手段（可重复执行，当前全绿）**
 
 ```bash
+./play.sh --check                             # 环境自检（平台/Python/curses/终端/编码/尺寸），排障第一步
 python3 -m unittest discover -s tests -v      # 53 项：内核 27 / TUI 布局 22 / CLI 4
 python3 tools/pty_smoke.py                    # 19 项：真实伪终端（tmux）里的 TUI 冒烟
 python3 -m dnd --headless-demo 300 --seed 5   # 无终端环境自检
@@ -135,6 +157,8 @@ python3 tools/preview.py                      # 渲染 12 个界面场景为 PNG
 | 范围蔓延 | 交付遥遥无期 | M1–M2 已定义为"最小完整可玩版"，M3+ 为增强 |
 | 终局硬拼劝退 | 玩家觉得不可能通关 | 守卫必生成但**遗物可抢走即胜**；隔离模拟成功率 18%~50%，README 明写"引开它再冲刺" |
 | 商标与版权 | 法律风险 | 不用 D&D 品牌与专有名词；仅用公有领域通用词 |
+| 启动环境差异（新增） | "clone 下来跑不起来"是开源项目第一杀手 | `play.sh` 把平台/版本/curses/终端/编码/尺寸逐项前置校验；原生 Windows 直接给 WSL2 指引；`--check` 一键出环境报告 |
+| 开源协议缺失（新增） | 无协议 = 保留一切权利，别人**不能合法使用** | 代码 MIT + 数据 CC0-1.0 双协议；README 与 `docs/open-source-compliance.md` 写清范围、非官方声明与商标处理 |
 
 ## 8. 决策留痕（立项三选项 → 实际拍板）
 
@@ -159,3 +183,10 @@ python3 tools/preview.py                      # 渲染 12 个界面场景为 PNG
 | 目录 | `src/core` `src/content` `src/platform` `web/` | `dnd/`（`dnd/data` 承载 content 角色） |
 
 > 已废弃方案原文（Canvas 512×512、字模表、`tools/serve.mjs` 等）仅存于本节对照表；实现层面**无一行 JS 残留**。
+
+立项后追加的两个决策（面向开源发布）：
+
+| 决策点 | 选项 | 拍板结果 | 理由 |
+|---|---|---|---|
+| **D4 启动方式** | (a) 每平台一份脚本（`.sh`+`.cmd`+`.ps1`）｜(b) 只写文档让人自己敲 `python3 -m dnd`｜(c) 单个 POSIX sh 脚本覆盖 Linux/macOS/WSL2 | **(c)** | (a) 维护三份且 Windows 侧注定跑不起来（原生无 curses），是"看得到的坏体验"；(b) 把环境问题全丢给用户，不符合"clone 就能玩"；(c) 一份脚本、一条命令，把平台差异收敛成"给指引"而不是"给适配" |
+| **D5 开源协议** | (a) 全仓 MIT｜(b) 代码 MIT + 数据 CC0-1.0｜(c) GPL-3.0｜(d) Apache-2.0 | **(b)** | `dnd/data/*.json` 是本项目最希望被替换/再创作的部分（`_meta.confidence: invented` 就是为此留的口子），CC0 取消署名与传染义务最贴合这一意图；代码用 MIT 则让 fork/商用/闭源再发行都不需要额外沟通。逐项分析与否决理由见 `docs/open-source-compliance.md` |

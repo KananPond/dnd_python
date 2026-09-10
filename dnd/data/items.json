@@ -1,6 +1,8 @@
 {
   "_meta": {
     "confidence": "invented",
+    "license": "CC0-1.0",
+    "license_note": "本表内容数据以 CC0-1.0 公共领域奉献发布（见 dnd/data/LICENSE-CC0.txt），代码部分为 MIT（见 LICENSE）。",
     "note": "原版物品/数值不可考；此处为复刻自定。AC 采用现代上升式（10 + 护甲加值 + 敏捷调整）。",
     "source": "docs/research-dossier.md#四"
   },

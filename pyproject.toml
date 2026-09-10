@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dnd"
+version = "0.1.0"
+description = "PLATO(1975)《dnd》的现代终端复刻：零第三方依赖的 Python curses 地牢爬行游戏"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "dnd contributors" }]
+keywords = ["dnd", "roguelike", "dungeon-crawler", "curses", "tui", "plato", "terminal-game", "retro"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console :: Curses",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: Chinese (Simplified)",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Games/Entertainment :: Role-Playing",
+]
+# 游戏本体只用标准库；Pillow 仅 tools/preview.py（把界面渲染成 PNG）需要。
+dependencies = []
+[project.optional-dependencies]
+preview = ["Pillow>=9"]
+
+[project.urls]
+Documentation = "https://github.com/OWNER/dnd#readme"
+Source = "https://github.com/OWNER/dnd"
+
+[project.scripts]
+dnd = "dnd.__main__:main"
+
+[tool.setuptools]
+packages = ["dnd", "dnd.ui"]
+
+[tool.setuptools.package-data]
+dnd = ["data/*.json", "data/*.txt"]
+
+[tool.ruff]
+# 与 requires-python 对齐：本机开发用 3.14，但必须保证 3.10 语法兼容。
+target-version = "py310"
+line-length = 120
+extend-exclude = [".mimosa", "out"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
