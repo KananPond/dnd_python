@@ -13,6 +13,9 @@ saves/*.json
 out/
 *.log
 
+# 本地工具链的临时状态（会话记录 / 审查报告），与游戏无关
+.mimosa/
+
 # 编辑器 / 系统
 .vscode/
 .idea/
