@@ -14,7 +14,8 @@ from .game import Game
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(prog="dnd", description="PLATO(1975)《dnd》现代复刻 — 终端版")
     ap.add_argument("--seed", type=int, default=None, help="固定随机种子（可用于复现同一座地牢）")
-    ap.add_argument("--name", default=None, help="角色名（省略则进入建角界面）")
+    ap.add_argument("--name", default=None,
+                    help="角色名（省略则进入建角界面；--name/--class/--race 三个都给出时才跳过建角）")
     ap.add_argument("--class", dest="class_id", default=None,
                     choices=["warrior", "wizard", "cleric", "rogue"], help="职业")
     ap.add_argument("--race", dest="race_id", default=None,
@@ -118,9 +119,11 @@ def main(argv=None) -> int:
             return creation_screen(stdscr, args.no_color, initial_name=args.name or "",
                                    initial_class=args.class_id, initial_race=args.race_id)
 
-        if args.name and args.class_id:
-            name, class_id = args.name, args.class_id
-            race_id = args.race_id or "human"
+        # 三个参数齐备才跳过建角；只给了 --name/--class 时照样进建角，把命令行给过的
+        # 值预填进去、种族留给用户选 —— 否则--race 的帮助文字（"省略则进入建角界面选择"）
+        # 就是假的，种族会被静默钉成 human。
+        if args.name and args.class_id and args.race_id:
+            name, class_id, race_id = args.name, args.class_id, args.race_id
         else:
             name, class_id, race_id = curses.wrapper(_create)
         seed = args.seed if args.seed is not None else int.from_bytes(os.urandom(4), "big")

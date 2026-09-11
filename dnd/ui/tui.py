@@ -53,6 +53,10 @@ HINTS = [
     ("R", "名册"), ("Q", "退出"),
 ]
 
+# 建角界面切换"职业栏 / 种族栏"的键。KEY_BTAB = Shift+Tab（终端发 \x1b[Z），
+# 很多终端/多路复用器把它当"上一栏"，原先漏了它，种族栏就只剩 Tab 和 ←→ 三条路。
+FOCUS_KEYS = frozenset({ord("\t"), curses.KEY_BTAB, curses.KEY_LEFT, curses.KEY_RIGHT})
+
 
 @dataclass
 class Layout:
@@ -138,8 +142,12 @@ class Tui:
         elif ch == "P":
             self.show_provenance = not self.show_provenance
         elif key == curses.KEY_F5 or ch == "S":
-            path = save_mod.save_game(g)
-            g.message(f"Game saved to {path.name}.", "good")
+            try:
+                path = save_mod.save_game(g)
+            except (OSError, TypeError, ValueError) as exc:
+                g.message(f"保存失败：{exc}", "bad")
+            else:
+                g.message(f"已保存：{path}", "good")
         elif ch == "x" and self.debug:
             g.command(("reveal",))
         elif ch == "t" and self.debug:
@@ -719,6 +727,9 @@ def creation_screen(stdscr, no_color: bool = False, *, initial_name: str = "",
     focus = 0  # 0 = 职业栏，1 = 种族栏
     ci = class_ids.index(initial_class) if initial_class in class_ids else 0
     ri = race_ids.index(initial_race) if initial_race in race_ids else 0
+    # 建角跑在 Tui 之前，别指望调用方开过 keypad：没开时方向键会以 ESC 序列到达，
+    # 命中下面 `key == 27` 的分支直接把游戏退出。这里自己开一次（幂等）。
+    stdscr.keypad(True)
     curses.curs_set(1)
     while True:
         stdscr.erase()
@@ -741,17 +752,26 @@ def creation_screen(stdscr, no_color: bool = False, *, initial_name: str = "",
         boxes = [(4, "职业", class_ids, ci, focus == 0, content.klass),
                  (4 + col_w + 4, "种族", race_ids, ri, focus == 1, content.race)]
         for bx, head, ids, sel, active, lookup in boxes:
+            # 活动栏用最亮的琥珀 + 加粗，非活动栏落到最暗一档。
+            # 这里不能拿 "far" 当非活动色：它(205,140,0)比 "frame"(150,110,55)还亮，
+            # 会把光标所在的那一栏衬得比非活动栏更不起眼 —— 焦点就"看不见"了。
             frame(stdscr, R["panel_top"], bx, R["panel_h"], col_w, head,
-                  a("far" if not active else "frame", active))
+                  a("amber" if active else "mem", active))
             for i, oid in enumerate(ids):
                 row = R["panel_top"] + 1 + i
-                text = f"{theme.G['sel'] if i == sel else ' '} {i + 1}. {label(lookup(oid))}"
-                if i == sel:
-                    # 选中项：整行反白，一眼能看到光标在哪一栏
+                item = f"{i + 1}. {label(lookup(oid))}"
+                if i != sel:
+                    put(stdscr, row, bx + 2, clip(f"  {item}", col_w - 4), a("dim"))
+                elif active:
+                    # 光标行：整行反白 + ▸。全屏只有活动栏会出现这个标记，一眼可辨。
                     fill(stdscr, row, bx + 1, col_w - 2, " ", a("sel"))
-                    put(stdscr, row, bx + 2, clip(text, col_w - 4), a("sel", True))
+                    put(stdscr, row, bx + 2,
+                        clip(f"{theme.G['sel']} {item}", col_w - 4), a("sel", True))
                 else:
-                    put(stdscr, row, bx + 2, clip(text, col_w - 4), a("dim"))
+                    # 非活动栏只标出"当前选的是哪个"（·），不反白：
+                    # 两栏都反白时用户看不出 ↑↓ 会动哪一栏，就会以为种族栏选不了。
+                    put(stdscr, row, bx + 2,
+                        clip(f"{theme.G['dot']} {item}", col_w - 4), a("amber"))
 
         klass = content.klass(class_ids[ci])
         race = content.race(race_ids[ri])
@@ -793,7 +813,7 @@ def creation_screen(stdscr, no_color: bool = False, *, initial_name: str = "",
                 ci = (ci + 1) % len(class_ids)
             else:
                 ri = (ri + 1) % len(race_ids)
-        elif key in (curses.KEY_LEFT, curses.KEY_RIGHT, ord("\t"), 9):
+        elif key in FOCUS_KEYS:
             focus = 1 - focus
         elif 0 <= key < 256 and chr(key) in "1234":
             if focus == 0:

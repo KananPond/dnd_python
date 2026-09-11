@@ -100,6 +100,26 @@ class TestListSaves(unittest.TestCase):
 
 
 @unittest.skipIf(os.name != "posix", "需要 pty + curses")
+class TestCreationEntryPoint(unittest.TestCase):
+    """建角入口的取舍：只有 --name/--class/--race 三个都给了才跳过建角界面。"""
+
+    def test_name_and_class_without_race_still_opens_creation(self):
+        """回归：--name/--class 齐了但没给 --race 时，曾经直接跳过建角并把种族静默钉成 human。"""
+        out, _code = run_in_pty(["-m", "dnd", "--name", "CliPart", "--class", "warrior"],
+                               stop_when="Tab")   # 页脚最后写：等到它出现，整屏（含姓名）就画完了
+        self.assertNotIn("Traceback", out)
+        self.assertIn("创建冒险者", out, "没给 --race 就应该进建角界面，种族让用户自己选")
+        self.assertIn("CliPart", out, "命令行给的名字要预填进建角界面")
+
+    def test_all_three_args_skip_creation(self):
+        out, _code = run_in_pty(["-m", "dnd", "--name", "CliAll", "--class", "cleric",
+                                 "--race", "dwarf"], stop_when="CliAll")
+        self.assertNotIn("Traceback", out)
+        self.assertNotIn("创建冒险者", out, "三个参数齐备时应直接开局")
+        self.assertIn(_TITLE, out, "TUI 应该正常起来")
+
+
+@unittest.skipIf(os.name != "posix", "需要 pty + curses")
 class TestLoadStartsTui(unittest.TestCase):
     def test_load_enters_game(self):
         game = Game(4242, "CliLoad", "warrior")

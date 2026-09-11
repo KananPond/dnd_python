@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """在真实伪终端里跑 TUI 的冒烟测试（使用 tmux，无需人工介入）。
 
-覆盖：启动 → 建角界面（↑↓ 选职业/种族）→ 进入游戏 → WASD 移动 → 浮层 → 存档 → 退出。
+覆盖：启动 → 建角界面（↑↓ 选职业/种族，Tab / Shift+Tab / ←→ 切栏，焦点 ▸ 只在活动栏）→
+进入游戏 → WASD 移动 → 浮层 → 存档 → 退出。
 用法：python3 tools/pty_smoke.py
 """
 
@@ -65,6 +66,9 @@ def run_checks() -> dict:
     send("Down")                # 种族：human -> elf
     after_select = capture()
     checks["↑↓+Tab 生效"] = "精灵" in after_select
+    # 焦点必须看得见：光标 ▸ 只出现在活动栏，非活动栏用 · 标出当前选择
+    checks["光标只在活动栏"] = "▸ 2. 精灵" in after_select and "▸ 2. 法师" not in after_select
+    checks["非活动栏仍标出选择"] = "· 2. 法师" in after_select
     send("Enter")
     time.sleep(0.6)
 
@@ -111,6 +115,21 @@ def run_checks() -> dict:
     time.sleep(0.6)
     alive = subprocess.run(["tmux", "has-session", "-t", SESSION], capture_output=True).returncode == 0
     checks["可退出"] = not alive
+    tmux("kill-session", "-t", SESSION)
+
+    # ---------- 阶段 A2：Shift+Tab 也能切栏（回归：KEY_BTAB 曾被吞掉，种族栏进不去） ----------
+    start("--seed 9")
+    type_text("Smoke")
+    send("BTab")                # KEY_BTAB（终端发 \x1b[Z）
+    send("Down")                # 种族：human -> elf
+    shift_tab = capture()
+    checks["Shift+Tab 可切栏"] = "▸ 2. 精灵" in shift_tab
+    send("Enter")
+    time.sleep(0.6)
+    checks["Shift+Tab 选的种族生效"] = "精灵" in capture()
+    type_text("Q")
+    type_text("y")
+    time.sleep(0.6)
     tmux("kill-session", "-t", SESSION)
 
     # ---------- 阶段 E：CLI 直开（--name/--class/--race） ----------

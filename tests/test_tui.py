@@ -17,6 +17,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -44,15 +45,18 @@ class FakeScreen:
         self.h, self.w = h, w
         self.keys = list(keys)
         self.buf = [[" "] * w for _ in range(h)]
+        self.attrs = {}          # (y, x) -> attr：建角焦点/配色断言用（字符记不出属性）
+        self.keypad_calls = []
 
     def getmaxyx(self):
         return self.h, self.w
 
     def erase(self):
         self.buf = [[" "] * self.w for _ in range(self.h)]
+        self.attrs = {}
 
     def keypad(self, flag):
-        pass
+        self.keypad_calls.append(flag)
 
     def noutrefresh(self):
         pass
@@ -64,6 +68,11 @@ class FakeScreen:
             if x + i >= self.w:
                 raise curses.error("line overflow")
             self.buf[y][x + i] = ch
+            self.attrs[(y, x + i)] = attr
+
+    def attr_at(self, y: int, x: int):
+        """某个格子上最后落笔的属性（没写过返回 None）。"""
+        return self.attrs.get((y, x))
 
     def getch(self):
         return self.keys.pop(0) if self.keys else 27
@@ -117,6 +126,7 @@ class TestLayout(unittest.TestCase):
             self.assertEqual(L.log_top + tui_mod.LOG_LINES - 1, L.hint - 1,
                              f"{h}x{w}：日志区与提示栏之间不能有空隙或重叠")
             self.assertEqual(L.log_rule, L.log_top - 1, f"{h}x{w}：日志分隔线应在日志上方")
+
 
     def test_sidebar_keeps_its_border(self):
         game = Game(7, "Panel", "wizard", race_id="gnome")
@@ -185,6 +195,28 @@ class TestLayout(unittest.TestCase):
             self.assertIn("@", scr.text(), f"{h}x{w} 下应能看到玩家")
 
 
+class TestSaveInput(unittest.TestCase):
+    def test_f5_and_shift_s_save_and_report_path(self):
+        game = Game(12, "SaveInput", "warrior")
+        tui = tui_mod.Tui(FakeScreen(24, 100), game, no_color=True)
+        path = _TMP / "save-input.json"
+        with patch.object(tui_mod.save_mod, "save_game", return_value=path) as save_game:
+            tui.handle_key(curses.KEY_F5)
+            tui.handle_key(ord("S"))
+
+        self.assertEqual(save_game.call_count, 2)
+        self.assertEqual(game.log[-2:], [(f"已保存：{path}", "good")] * 2)
+
+    def test_save_error_stays_in_game_and_is_reported(self):
+        game = Game(12, "SaveError", "warrior")
+        tui = tui_mod.Tui(FakeScreen(24, 100), game, no_color=True)
+        with patch.object(tui_mod.save_mod, "save_game", side_effect=PermissionError("拒绝访问")):
+            tui.handle_key(ord("S"))
+
+        self.assertEqual(game.state, "playing")
+        self.assertEqual(game.log[-1], ("保存失败：拒绝访问", "bad"))
+
+
 class TestCreationScreen(unittest.TestCase):
     def test_prefills_cli_values_and_initialises_colors(self):
         """回归：建角界面要先初始化配色，并且不能丢掉 --name/--class/--race 给的值。"""
@@ -200,7 +232,56 @@ class TestCreationScreen(unittest.TestCase):
         self.assertTrue(calls, "creation_screen 必须先初始化配色，否则建角界面没有主题色")
         self.assertEqual(result, ("Prefilled", "wizard", "elf"))
         self.assertIn("Prefilled", scr.text(), "姓名应预填在界面上")
-        self.assertIn(f"{theme.G['sel']} 2. 精灵", scr.text(), "种族应预选命令行给的那个")
+        # 初始焦点在职业栏：种族栏是"非活动栏"，只能看到弱化标记 ·，不能出现光标 ▸
+        self.assertIn(f"{theme.G['dot']} 2. 精灵", scr.text(), "非活动栏也要标出命令行预选的种族")
+        self.assertNotIn(f"{theme.G['sel']} 2. 精灵", scr.text(), "光标不该出现在非活动的种族栏")
+
+    def test_only_the_active_column_shows_the_cursor(self):
+        """回归：两栏的选中行都整行反白 → 看不出 ↑↓ 会动哪一栏，用户以为种族栏选不了。"""
+        scr = FakeScreen(30, 100, keys=[10])
+        tui_mod.creation_screen(scr, True)
+        text = scr.text()
+        self.assertIn(f"{theme.G['sel']} 1. 战士", text, "职业栏应有光标标记")
+        self.assertNotIn(f"{theme.G['sel']} 1. 人类", text, "非活动栏不该出现光标标记")
+        self.assertIn(f"{theme.G['dot']} 1. 人类", text, "非活动栏仍要标出当前选择")
+
+        scr = FakeScreen(30, 100, keys=[9, 10])   # Tab → 焦点到种族栏
+        tui_mod.creation_screen(scr, True)
+        text = scr.text()
+        self.assertIn(f"{theme.G['sel']} 1. 人类", text, "切栏后光标应移到种族栏")
+        self.assertNotIn(f"{theme.G['sel']} 1. 战士", text, "光标应离开职业栏")
+
+    def test_focus_switches_with_tab_shift_tab_and_arrows(self):
+        """回归：切栏只认 Tab / ←→，Shift+Tab（KEY_BTAB）被吞掉，种族栏就进不去。"""
+        for key in (9, curses.KEY_BTAB, curses.KEY_LEFT, curses.KEY_RIGHT):
+            with self.subTest(key=key):
+                scr = FakeScreen(30, 100, keys=[key, curses.KEY_DOWN, 10])
+                self.assertEqual(tui_mod.creation_screen(scr, True),
+                                 ("冒险者", "warrior", "elf"), f"{key=} 应能切到种族栏")
+                # 再切一次应回到职业栏：↑↓ 改的是职业
+                scr = FakeScreen(30, 100, keys=[key, key, curses.KEY_DOWN, 10])
+                self.assertEqual(tui_mod.creation_screen(scr, True),
+                                 ("冒险者", "wizard", "human"), f"{key=} 应能切回职业栏")
+
+    def test_active_column_is_drawn_brighter_than_the_inactive_one(self):
+        """回归：焦点靠"非活动栏更亮"来暗示（far 比 frame 亮），等于把光标栏藏了起来。"""
+        scr = FakeScreen(30, 100, keys=[10])
+        tui_mod.creation_screen(scr, True)
+        top = tui_mod._creation_layout(30, 100)["panel_top"]
+        class_border, race_border = scr.attr_at(top, 4), scr.attr_at(top, 38)  # col_w=30
+        self.assertEqual(class_border, theme.attr("amber", True, True), "活动栏边框应最亮 + 加粗")
+        self.assertEqual(race_border, theme.attr("mem", True), "非活动栏边框应落到最暗一档")
+        self.assertNotEqual(class_border, race_border, "两栏边框必须能分辨出焦点")
+
+        scr = FakeScreen(30, 100, keys=[9, 10])
+        tui_mod.creation_screen(scr, True)
+        self.assertEqual(scr.attr_at(top, 38), theme.attr("amber", True, True), "切栏后亮边框应跟着走")
+
+    def test_creation_enables_keypad(self):
+        """回归：建角跑在 Tui 之前，没开 keypad 时方向键是 ESC 序列，会直接退出游戏。"""
+        scr = FakeScreen(30, 100, keys=[10])
+        tui_mod.creation_screen(scr, True)
+        self.assertIn(True, scr.keypad_calls, "creation_screen 自己要开 keypad，别指望调用方")
 
     def test_empty_name_falls_back(self):
         scr = FakeScreen(30, 100, keys=[10])

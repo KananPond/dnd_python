@@ -131,8 +131,8 @@ DND/
 
 ```bash
 ./play.sh --check                             # 环境自检（平台/Python/curses/终端/编码/尺寸），排障第一步
-python3 -m unittest discover -s tests -v      # 53 项：内核 27 / TUI 布局 22 / CLI 4
-python3 tools/pty_smoke.py                    # 19 项：真实伪终端（tmux）里的 TUI 冒烟
+python3 -m unittest discover -s tests -v      # 59 项：内核 27 / TUI 布局 26 / CLI 入口 6
+python3 tools/pty_smoke.py                    # 23 项：真实伪终端（tmux）里的 TUI 冒烟
 python3 -m dnd --headless-demo 300 --seed 5   # 无终端环境自检
 python3 tools/sim.py --runs 60 --class warrior  # 机器人跑批统计（可加 --json 落盘）
 python3 tools/preview.py                      # 渲染 12 个界面场景为 PNG（需 Pillow，仅开发用）
