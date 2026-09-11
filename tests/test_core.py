@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import pathlib
 import sys
 import tempfile
@@ -148,6 +149,53 @@ class TestGameFlow(unittest.TestCase):
         self.assertEqual(game.state_hash(), loaded.state_hash())
         self.assertEqual(game.turn, loaded.turn)
         self.assertEqual(game.depth, loaded.depth)
+
+    def test_saved_meta_is_readable_and_does_not_break_loading(self):
+        """存档管理界面靠 _meta 显示摘要；它必须是**附加**字段，不能影响读档。"""
+        game = Game(4242, "MetaHero", "wizard", race_id="elf")
+        game.command(("wait",))
+        path = save.save_game(game)
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(raw["_meta"]["name"], "MetaHero")
+        self.assertEqual(raw["_meta"]["race"], "精灵")
+        self.assertEqual(raw["_meta"]["turn"], game.turn)
+        self.assertEqual(raw["_meta"]["hp"], game.player.hp)
+        self.assertEqual(save.load_game(path).state_hash(), game.state_hash(),
+                         "_meta 不该干扰 from_json")
+
+    def test_index_summarises_saves_and_survives_corruption(self):
+        """回归：存档管理界面必须能列出**坏存档**（否则玩家只能回命令行删文件）。"""
+        good = save.save_game(Game(7, "Indexed", "rogue", race_id="dwarf"))
+        broken = save.SAVE_DIR / "broken.json"
+        broken.write_text("{ 这不是 JSON", encoding="utf-8")
+        entries = save.index()
+        by_file = {e["file"]: e for e in entries}
+        self.assertIn(good.name, by_file)
+        entry = by_file[good.name]
+        self.assertEqual(entry["name"], "Indexed")
+        self.assertEqual(entry["klass"], "盗贼")
+        self.assertIsNone(entry["error"])
+        self.assertTrue(entry["date"], "摘要里应有保存时间")
+        self.assertIn(broken.name, by_file, "坏存档也要列出来，玩家才能删")
+        self.assertTrue(by_file[broken.name]["error"])
+        save.delete_save(broken)
+        self.assertNotIn(broken.name, {e["file"] for e in save.index()})
+
+    def test_legacy_save_without_meta_still_summarises(self):
+        """旧存档（没有 _meta）也要能在列表里显示 —— 退回 player 段 + 文件名。"""
+        game = Game(11, "Legacy", "cleric", race_id="gnome")
+        path = save.save_game(game)
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        del raw["_meta"]
+        path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+        entry = save.save_summary(path)
+        self.assertIsNone(entry["error"])
+        self.assertEqual(entry["name"], "Legacy")
+        self.assertEqual(entry["klass"], "牧师")
+        self.assertEqual(entry["race"], "侏儒")
+        self.assertEqual(entry["level"], game.player.level)
+        self.assertEqual(entry["depth"], game.depth)
+        self.assertTrue(entry["date"], "没有 _meta 时应退回文件修改时间")
 
     def test_replay_is_deterministic(self):
         cmds = [("move", 1, 0), ("move", 0, 1), ("wait",), ("move", 1, 1), ("move", -1, 0)]

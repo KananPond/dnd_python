@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import curses
+import os
 import pathlib
 import sys
 import tempfile
@@ -31,7 +32,9 @@ from dnd import save  # noqa: E402
 from dnd.entities import make_item  # noqa: E402
 from dnd.game import Game  # noqa: E402
 from dnd.ui import describe, theme, widgets  # noqa: E402
+from dnd.ui import screens as screens_mod  # noqa: E402
 from dnd.ui import tui as tui_mod  # noqa: E402
+from dnd.ui.widgets import _width  # noqa: E402
 
 _TMP = pathlib.Path(tempfile.mkdtemp(prefix="dnd-tui-tests-"))
 save.SAVE_DIR = _TMP
@@ -77,11 +80,71 @@ class FakeScreen:
     def getch(self):
         return self.keys.pop(0) if self.keys else 27
 
+    def resize(self, h: int, w: int):
+        """模拟终端被缩放（KEY_RESIZE 之后调用方会重画）。"""
+        self.h, self.w = h, w
+        self.buf = [[" "] * w for _ in range(h)]
+        self.attrs = {}
+
     def row(self, y: int) -> str:
         return "".join(self.buf[y])
 
     def text(self) -> str:
         return "\n".join(self.row(y) for y in range(self.h))
+
+
+def row_of(scr: FakeScreen, needle: str) -> int:
+    rows = [y for y in range(scr.h) if needle in scr.row(y)]
+    return rows[0] if rows else -1
+
+
+def is_pressed(scr: FakeScreen, y: int, col: int) -> bool:
+    """(y, col) 这格是不是"反白"的（选中行的底色）。"""
+    attr = scr.attr_at(y, col)
+    return attr is not None and bool(attr & curses.A_REVERSE)
+
+
+def highlight_row(scr: FakeScreen, text: str) -> bool:
+    """菜单里 `text` 那一项是否处于反白的选中行。
+
+    做法：先找出这一行的第一个反白格（= 光标行的底色起点），跳过底色上的空格与
+    光标标记，再看 text 是否正好从这里开始。两个坑：面板左边框也压在反白底色上
+    （不能拿"行内首个非空格"当起点），以及中文占两格（不能用 `str.index` 的字符下标当列号）。
+    """
+    for y in range(scr.h):
+        row = scr.row(y)
+        if text not in row:
+            continue
+        revs = [x for x in range(scr.w) if is_pressed(scr, y, x)]
+        if not revs:
+            return False
+        col = revs[0]
+        while col < scr.w and (row[col] == " " or row[col] == theme.G["sel"]):
+            col += 1
+        return row[col:col + len(text)] == text
+    return False
+
+
+def selected_rows(scr: FakeScreen) -> list:
+    """光标所在行（= 反白底色横跨整行的那一行）。用于断言"只有一行被选中"。
+
+    判据：该行的最左与最右反白格之间被反白铺满 —— 面板边框压在反白上仍算选中行。
+    """
+    out = []
+    for y in range(scr.h):
+        row = scr.row(y)
+        revs = [x for x in range(scr.w) if is_pressed(scr, y, x)]
+        if not revs or revs[-1] - revs[0] < 8:
+            continue
+        if all(is_pressed(scr, y, x) for x in range(revs[0], revs[-1] + 1)):
+            out.append(y)
+    return out
+
+
+def only_selected_row(scr: FakeScreen) -> int:
+    rows = selected_rows(scr)
+    assert len(rows) == 1, f"菜单里应该恰好有一行反白，实际 {rows}"
+    return rows[0]
 
 
 def render(game: Game, h: int, w: int) -> FakeScreen:
@@ -312,6 +375,420 @@ class TestCreationScreen(unittest.TestCase):
                 tui_mod.creation_screen(scr, True)
             self.assertIn("终端窗口太小", scr.text(), f"{w}x{h} 应提示窗口太小")
             self.assertIn("62x18", scr.text(), f"{w}x{h} 应提示需要多大")
+
+
+class TestStartScreen(unittest.TestCase):
+    """开始页：启动后先看到它，↑↓ 选菜单，回车确认。"""
+
+    def test_shows_logo_items_and_key_hints(self):
+        scr = FakeScreen(30, 100, keys=[27])
+        self.assertEqual(screens_mod.start_screen(scr, True), "quit")
+        text = scr.text()
+        self.assertIn("深渊地牢", text)
+        for item in ("新的冒险", "读取存档", "名人堂", "退出游戏"):
+            self.assertIn(item, text, f"开始页应该看得到「{item}」")
+        self.assertIn("PLATO（1975）", text, "副标题是这一屏的门面")
+        self.assertIn("↑↓", text, "必须提示方向键可用")
+
+    def test_arrow_keys_move_the_highlight(self):
+        """回归重点：菜单必须是**看得见**的光标，不能只有底部一行提示。"""
+        scr = FakeScreen(30, 100, keys=[27])
+        screens_mod.start_screen(scr, True)
+        self.assertTrue(highlight_row(scr, "新的冒险"), "默认选中第一项")
+        self.assertIn(f"{theme.G['sel']} 新的冒险", scr.text(), "选中行要有光标标记")
+
+        scr = FakeScreen(30, 100, keys=[curses.KEY_DOWN, 27])
+        screens_mod.start_screen(scr, True)
+        self.assertTrue(highlight_row(scr, "读取存档"), "↓ 之后光标应在第二项")
+        self.assertFalse(highlight_row(scr, "新的冒险"), "光标必须离开第一项")
+
+        scr = FakeScreen(30, 100, keys=[curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_UP, 27])
+        screens_mod.start_screen(scr, True)
+        self.assertTrue(highlight_row(scr, "读取存档"), "↑ 应该能退回去")
+
+    def test_only_the_selected_row_is_reversed(self):
+        """反白必须只有一行：多行反白就看不出方向键会动哪一项。"""
+        scr = FakeScreen(30, 100, keys=[27])
+        screens_mod.start_screen(scr, True)
+        self.assertEqual(len(selected_rows(scr)), 1, f"反白行：{selected_rows(scr)}")
+
+    def test_menu_does_not_shift_when_the_selection_moves(self):
+        """光标只应该"换行"，不该让面板长高/变宽（否则一按方向键整屏就跳）。"""
+        scr = FakeScreen(30, 100, keys=[27])
+        screens_mod.start_screen(scr, True)
+        before = (row_of(scr, "新的冒险"), row_of(scr, "退出游戏"))
+        scr = FakeScreen(30, 100, keys=[curses.KEY_DOWN, curses.KEY_DOWN, 27])
+        screens_mod.start_screen(scr, True)
+        after = (row_of(scr, "新的冒险"), row_of(scr, "退出游戏"))
+        self.assertNotEqual(before, (-1, -1), "选项没画出来")
+        self.assertEqual(before, after, "选项行位置不该随光标移动而变化")
+
+    def test_arrow_keys_wrap_around(self):
+        scr = FakeScreen(30, 100, keys=[curses.KEY_UP, 27])
+        screens_mod.start_screen(scr, True)
+        self.assertTrue(highlight_row(scr, "退出游戏"), "在首项按 ↑ 应绕到末项")
+
+    def test_enter_selects_new_game_and_load(self):
+        scr = FakeScreen(30, 100, keys=[10])
+        self.assertEqual(screens_mod.start_screen(scr, True), "new", "回车应选择当前项")
+        scr = FakeScreen(30, 100, keys=[curses.KEY_DOWN, 10])
+        self.assertEqual(screens_mod.start_screen(scr, True), "load", "↓ + 回车 → 读取存档")
+        scr = FakeScreen(30, 100, keys=[ord("2"), 10])
+        self.assertEqual(screens_mod.start_screen(scr, True), "load", "1-4 直选也应生效")
+
+    def test_load_row_counts_the_saves(self):
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="dnd-menu-count-"))
+        old = save.SAVE_DIR
+        save.SAVE_DIR = tmp
+        try:
+            for name in ("A", "B"):
+                save.save_game(Game(1, f"Menu{name}", "warrior"))
+            scr = FakeScreen(30, 100, keys=[27])
+            screens_mod.start_screen(scr, True)
+            text = scr.text()
+        finally:
+            save.SAVE_DIR = old
+        self.assertIn("2 个存档", text, "「读取存档」旁应写明有几个存档")
+
+    def test_start_screen_enables_keypad_and_colors(self):
+        """回归：没开 keypad 时方向键会以 ESC 序列到达 —— 按一下 ↑ 就把游戏退了。"""
+        calls = []
+        original = screens_mod.theme.init_colors
+        screens_mod.theme.init_colors = lambda no_color=False: calls.append(no_color)
+        try:
+            scr = FakeScreen(30, 100, keys=[27])
+            screens_mod.start_screen(scr, True)
+        finally:
+            screens_mod.theme.init_colors = original
+        self.assertIn(True, scr.keypad_calls, "开始页自己要开 keypad")
+        self.assertTrue(calls, "开始页也要初始化配色（它跑在 Tui 之前）")
+
+    def test_too_small_shows_hint_and_can_still_exit(self):
+        scr = FakeScreen(12, 50, keys=[27])
+        self.assertEqual(screens_mod.start_screen(scr, True), "quit")
+        self.assertIn("终端窗口太小", scr.text())
+        scr = FakeScreen(12, 50, keys=[curses.KEY_RESIZE, curses.KEY_RESIZE, 27])
+        self.assertEqual(screens_mod.start_screen(scr, True), "quit",
+                         "堆叠的 KEY_RESIZE 要被吞掉，不能卡住")
+
+
+def _make_save(scr_dir, name: str, *, klass: str = "warrior", race: str = "human",
+               depth: int = 2, turn: int = 120, gold: int = 88, hp: int = 9,
+               date: str = "2026-09-10 20:00", mtime: float | None = None):
+    """造一份**真能读回来**的存档，再把摘要字段钉成测试要的值。
+
+    刻意不用手写 JSON：手写的假存档一旦和 Game.from_json 的要求脱节，
+    "回车读档"这条路径就测不到了（读的是测试自己的错，不是产品的错）。
+    """
+    import json
+    game = Game(5, name, klass, race_id=race)
+    game.depth, game.turn = depth, turn
+    game.player.level = 3
+    game.player.gold, game.player.hp = gold, hp
+    path = save.save_game(game)                    # 文件名由角色名决定
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw["_meta"].update({"level": 3, "depth": depth, "turn": turn, "gold": gold,
+                         "hp": hp, "max_hp": 21, "date": date})
+    path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+    if mtime is not None:                          # index() 按 mtime 排序
+        os.utime(path, (mtime, mtime))
+    return path
+
+
+class FrameScreen(FakeScreen):
+    """每按一次键就记下当前画面 —— "提示曾经出现过"这类断言用它。
+
+    界面会在玩家按键后重画（例如删除成功后就切回列表），所以"最后停在退出那一帧"
+    并不包含刚才的提示。断言"某一帧里出现过这句话"才是真正想测的东西。
+    """
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.frames: list[str] = []
+
+    def getch(self):
+        self.frames.append(self.text())
+        return super().getch()
+
+    def ever(self, needle: str) -> bool:
+        return any(needle in frame for frame in self.frames)
+
+
+class TestSaveManagerScreen(unittest.TestCase):
+    """存档管理界面：不用输命令就能看存档、读存档、删存档。"""
+
+    def setUp(self):
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="dnd-savemgr-"))
+        self._old_dir = save.SAVE_DIR
+        save.SAVE_DIR = self.tmp
+
+    def tearDown(self):
+        save.SAVE_DIR = self._old_dir
+
+    def test_empty_state_explains_itself(self):
+        scr = FakeScreen(28, 100, keys=[27])
+        self.assertIsNone(screens_mod.save_manager_screen(scr, True))
+        text = scr.text()
+        self.assertIn("存档管理", text)
+        self.assertIn("F5", text, "空列表要告诉玩家怎么产生存档")
+        self.assertIn("暂无存档", text)
+        self.assertIn("↑↓", text)
+
+    def test_lists_every_save_and_navigates_with_arrows(self):
+        # 文件名由 save.safe_name(角色名) 决定 → 小写；_make_save 会把它返回
+        aria = _make_save(self.tmp, "Aria", klass="wizard", race="elf", depth=3, mtime=1.0)
+        borin = _make_save(self.tmp, "Borin", klass="warrior", race="dwarf", depth=7, mtime=2.0)
+        scr = FakeScreen(28, 100, keys=[27])
+        screens_mod.save_manager_screen(scr, True)
+        text = scr.text()
+        self.assertIn("Aria", text)
+        self.assertIn("Borin", text)
+        self.assertIn("共 2 个存档", text, "面板页脚应写明总数")
+        # 最近保存的排在前面（mtime=2.0 的 Borin）
+        self.assertLess(row_of(scr, "Borin"), row_of(scr, "Aria"))
+        self.assertTrue(highlight_row(scr, "Borin"), "默认选中最近一条")
+        self.assertEqual(len(selected_rows(scr)), 1, "存档列表只应有一行反白")
+        self.assertIn("矮人·战士 3级", text, "右栏应显示选中角色的档案")
+        self.assertIn(borin.name, text, "右栏应写明存档文件名")
+
+        scr = FakeScreen(28, 100, keys=[curses.KEY_DOWN, 27])
+        screens_mod.save_manager_screen(scr, True)
+        self.assertTrue(highlight_row(scr, "Aria"), "↓ 应把光标移到下一条")
+        self.assertIn("精灵·法师 3级", scr.text(), "右栏应跟着光标换成 Aria")
+        self.assertNotEqual(aria.name, borin.name, "两个存档不该互相覆盖")
+
+    def test_enter_loads_the_selected_save(self):
+        path = _make_save(self.tmp, "Loader", klass="cleric", depth=5)
+        scr = FakeScreen(28, 100, keys=[10])
+        game = screens_mod.save_manager_screen(scr, True)
+        self.assertIsNotNone(game, "回车应该读出存档")
+        self.assertEqual(game.player.name, "Loader")
+        self.assertEqual(game.player.class_id, "cleric")
+        self.assertEqual(game.depth, 5)
+        self.assertTrue(path.exists(), "读档不该删掉存档文件")
+
+    def test_corrupt_save_is_listed_and_never_crashes_the_screen(self):
+        """回归：一个读不动的 JSON 不能让整个界面崩掉 —— 否则玩家只能回命令行删文件。"""
+        broken = self.tmp / "broken.json"
+        broken.write_text("{ 这不是 JSON", encoding="utf-8")
+        scr = FakeScreen(28, 100, keys=[27])
+        self.assertIsNone(screens_mod.save_manager_screen(scr, True))
+        text = scr.text()
+        self.assertIn("broken", text, "坏存档也要列出来，玩家才有机会删它")
+        self.assertIn("损坏", text, "列表里要标出这条读不动")
+        self.assertIn("读取失败", text, "选中坏存档时右栏要写明原因")
+        self.assertIn("D", text, "要提示可以用 D 删掉它")
+
+    def test_entering_a_corrupt_save_reports_instead_of_loading(self):
+        broken = self.tmp / "broken.json"
+        broken.write_text("{ 这不是 JSON", encoding="utf-8")
+        scr = FrameScreen(28, 100, keys=[10, curses.KEY_UP, 27])
+        self.assertIsNone(screens_mod.save_manager_screen(scr, True), "坏存档不该被读进来")
+        self.assertTrue(scr.ever("读不动"))
+
+    def test_delete_asks_first_and_defaults_to_cancel(self):
+        """危险操作默认停在「取消」：一路敲回车的人不该删掉存档。"""
+        path = _make_save(self.tmp, "Doomed")
+        scr = FrameScreen(28, 100, keys=[ord("d"), 10, curses.KEY_UP, 27])
+        self.assertIsNone(screens_mod.save_manager_screen(scr, True))
+        self.assertTrue(path.exists(), "确认框默认停在「取消」，回车不该删文件")
+        self.assertTrue(scr.ever("请确认"), "删除前必须先问一句")
+        self.assertTrue(scr.ever("Doomed"), "确认框要点名是哪个角色")
+
+    def test_delete_removes_the_file_when_confirmed(self):
+        doomed = _make_save(self.tmp, "Doomed")
+        keeper = _make_save(self.tmp, "Keeper", mtime=1.0)
+        scr = FrameScreen(28, 100, keys=[ord("d"), curses.KEY_RIGHT, 10, curses.KEY_UP, 27])
+        screens_mod.save_manager_screen(scr, True)
+        self.assertFalse(doomed.exists(), "选中「确定」后回车应真的删除")
+        self.assertTrue(keeper.exists(), "另一个存档不该受影响")
+        self.assertTrue(scr.ever("已删除"), "删除结果要写回界面")
+
+    def test_delete_failure_is_reported_not_raised(self):
+        _make_save(self.tmp, "Locked")
+        scr = FrameScreen(28, 100, keys=[ord("d"), curses.KEY_RIGHT, 10, curses.KEY_UP, 27])
+        with patch.object(screens_mod.save_mod, "delete_save",
+                          side_effect=PermissionError("拒绝访问")):
+            screens_mod.save_manager_screen(scr, True)
+        self.assertTrue(scr.ever("删除失败：拒绝访问"))
+
+    def test_delete_can_be_cancelled_with_escape(self):
+        path = _make_save(self.tmp, "Safe")
+        scr = FakeScreen(28, 100, keys=[ord("d"), 27, 27])
+        screens_mod.save_manager_screen(scr, True)
+        self.assertTrue(path.exists(), "确认框里按 Esc 应取消删除")
+
+    def test_load_failure_is_reported_not_raised(self):
+        """文件在列表之后被删/被改坏：读档失败要回到界面并提示，不能抛异常。"""
+        _make_save(self.tmp, "Vanishing")
+        scr = FrameScreen(28, 100, keys=[10, curses.KEY_UP, 27])
+        with patch.object(screens_mod.save_mod, "load_game",
+                          side_effect=ValueError("JSON 损坏")):
+            self.assertIsNone(screens_mod.save_manager_screen(scr, True))
+        self.assertTrue(scr.ever("读取失败"))
+
+class TestRosterScreens(unittest.TestCase):
+    def setUp(self):
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="dnd-roster-"))
+        self._old = save.ROSTER
+        save.ROSTER = self.tmp / "roster.json"
+        save.ROSTER.write_text(
+            '[{"name":"Aria","race":"精灵","class":"法师","level":6,"depth":7,'
+            '"result":"dead","gold":412,"turns":1883,"date":"2026-09-08 21:14"},'
+            '{"name":"Borin","race":"矮人","class":"战士","level":9,"depth":10,'
+            '"result":"won","gold":1204,"turns":3421,"date":"2026-09-09 02:40"}]',
+            encoding="utf-8")
+
+    def tearDown(self):
+        save.ROSTER = self._old
+
+    def test_lobby_lists_roster_entries(self):
+        scr = FakeScreen(30, 100, keys=[27])
+        screens_mod.lobby_screen(scr, True)
+        text = scr.text()
+        self.assertIn("名人堂", text)
+        self.assertIn("Aria", text)
+        self.assertIn("Borin", text)
+        self.assertIn("胜利", text)
+        self.assertIn("阵亡", text)
+
+    def test_lobby_handles_empty_roster(self):
+        save.ROSTER.unlink()
+        scr = FakeScreen(30, 100, keys=[27])
+        screens_mod.lobby_screen(scr, True)
+        self.assertIn("还没有冒险者", scr.text())
+
+    def test_game_roster_overlay_shows_the_same_rows(self):
+        game = Game(3, "Roster", "warrior")
+        scr = FakeScreen(30, 100, keys=[27])
+        tui = tui_mod.Tui(scr, game, no_color=True)
+        tui.roster_screen()
+        text = scr.text()
+        self.assertIn("Aria", text)
+        self.assertIn("Borin", text)
+
+
+class TestPauseMenu(unittest.TestCase):
+    """游戏内 Esc 菜单：继续 / 存档 / 存档管理 / 返回开始页 / 退出。"""
+
+    def test_escape_opens_the_menu_and_shows_actions(self):
+        game = Game(21, "Pause", "warrior")
+        scr = FakeScreen(30, 110, keys=[27])
+        tui = tui_mod.Tui(scr, game, no_color=True)
+        tui.handle_key(27)
+        text = scr.text()
+        self.assertIn("已暂停", text)
+        for item in ("继续游戏", "保存进度", "存档管理", "返回开始页", "退出游戏"):
+            self.assertIn(item, text, f"菜单里应该有「{item}」")
+        self.assertTrue(highlight_row(scr, "继续游戏"), "默认选中「继续游戏」")
+
+    def test_arrow_keys_walk_the_menu(self):
+        game = Game(21, "Pause", "warrior")
+        scr = FakeScreen(30, 110, keys=[curses.KEY_DOWN, curses.KEY_DOWN, 27])
+        tui = tui_mod.Tui(scr, game, no_color=True)
+        tui.handle_key(27)
+        self.assertTrue(highlight_row(scr, "存档管理"), "↓↓ 应停在「存档管理」")
+
+    def test_save_from_the_menu_writes_the_file(self):
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="dnd-pause-save-"))
+        old = save.SAVE_DIR
+        save.SAVE_DIR = tmp
+        try:
+            game = Game(21, "PauseSaver", "warrior")
+            scr = FakeScreen(30, 110, keys=[curses.KEY_DOWN, 10])
+            tui = tui_mod.Tui(scr, game, no_color=True)
+            tui.handle_key(27)                      # ↓ 到「保存进度」+ 回车
+            self.assertTrue((tmp / "pausesaver.json").exists(), "「保存进度」应真的写盘")
+            self.assertIn("已保存", game.log[-1][0], "存档结果要写进消息日志")
+        finally:
+            save.SAVE_DIR = old
+
+    def test_return_to_title_confirms_first(self):
+        """回归：回开始页会丢掉未保存的进度，必须先问一句，而且默认停在「取消」。"""
+        game = Game(21, "Pause", "warrior")
+        scr = FrameScreen(30, 110, keys=[curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN,
+                                         10, curses.KEY_DOWN, 27])
+        tui = tui_mod.Tui(scr, game, no_color=True)
+        tui.handle_key(27)                          # ↓↓↓ 到「返回开始页」+ 回车
+        self.assertTrue(scr.ever("返回开始页？"), "回开始页要先问一句（未保存会丢）")
+        self.assertTrue(scr.ever("请确认"), "确认框要看得见")
+
+    def test_confirm_dialog_cancel_keeps_playing(self):
+        """默认停在「取消」：敲回车不该把这一局丢掉。"""
+        game = Game(21, "Pause", "warrior")
+        scr = FrameScreen(30, 110, keys=[curses.KEY_DOWN, curses.KEY_DOWN, curses.KEY_DOWN,
+                                         10, 10, 27])
+        tui = tui_mod.Tui(scr, game, no_color=True)
+        tui.handle_key(27)                          # 回车落在「取消」上 → 回到暂停菜单
+        self.assertTrue(scr.ever("菜单 · 已暂停"), "取消后应留在暂停菜单里")
+
+    def test_in_game_save_manager_loads_a_game(self):
+        game = Game(21, "Pause", "warrior")
+        loaded = Game(99, "Loaded", "wizard")
+        scr = FakeScreen(30, 110)
+        tui = tui_mod.Tui(scr, game, no_color=True)
+        with patch.object(screens_mod, "save_manager_screen", return_value=loaded) as mgr:
+            tui.saves_screen()
+        self.assertTrue(mgr.called, "游戏内应复用开始页那个存档管理界面")
+        self.assertIs(tui.game, loaded, "读档后当前这一局应换成存档里的角色")
+
+    def test_escape_is_advertised_in_the_hint_bar(self):
+        game = Game(21, "Pause", "warrior")
+        scr = render(game, 30, 110)
+        self.assertIn("Esc", scr.row(29), "按键提示栏要写明 Esc 是菜单")
+
+
+class TestPanelGeometry(unittest.TestCase):
+    """面板排版公式（screens.panel_rect）：它同时喂给 draw_panel 和调用方，算错就是全屏错。"""
+
+    def test_panel_width_follows_the_window_width_not_the_height(self):
+        """回归：panel_rect 只收了高度当"可用宽度"，于是 24 行高的窗口里
+        所有面板都被压到 22 格宽 —— 确认框窄成一条缝，文字被截断。"""
+        _, _, wide = screens_mod.panel_rect(24, 120, items=2, desc=True, width=60, min_w=34)
+        self.assertEqual(wide, 60, "宽窗口下面板宽度应等于请求的宽度")
+        for h in (18, 24, 40):
+            _, _, box_w = screens_mod.panel_rect(h, 120, items=2, desc=True,
+                                                 width=60, min_w=34)
+            self.assertEqual(box_w, 60, f"面板宽度不该随窗口高度 {h} 变化")
+
+    def test_panel_width_is_clamped_by_the_region(self):
+        """游戏内浮层只在游玩区里居中：region_w 变窄时必须跟着变窄，不能越到侧栏上。"""
+        _, _, box_w = screens_mod.panel_rect(30, 118, items=2, desc=True, width=60,
+                                             min_w=34, region_w=89)
+        self.assertEqual(box_w, 60)
+        _, _, narrow = screens_mod.panel_rect(30, 118, items=2, desc=True, width=60,
+                                              min_w=34, region_w=48)
+        self.assertEqual(narrow, 46, "region_w - 2 是硬上限")
+        _, _, floored = screens_mod.panel_rect(30, 118, items=2, desc=True, width=60,
+                                               min_w=34, region_w=30)
+        self.assertEqual(floored, 34, "再窄也不低于 min_w")
+
+    def test_height_grows_with_rows_and_extra_padding(self):
+        _, base, _ = screens_mod.panel_rect(30, 100, items=2, desc=True, width=40)
+        _, taller, _ = screens_mod.panel_rect(30, 100, items=2, desc=True, width=40,
+                                              extra_rows=4)
+        self.assertEqual(taller, base + 4, "extra_rows 应原样加进高度")
+
+    def test_draw_panel_returns_the_predicted_size(self):
+        """draw_panel 的实际边框必须落在 panel_rect 预测的位置上（不然测试定位全错）。"""
+        scr = FakeScreen(30, 100)
+        top, box_h, box_w = screens_mod.panel_rect(
+            30, 100, items=4, desc=True, hint_rows=["a"], width=46, min_w=46)
+        got_w, got_left = screens_mod.draw_panel(
+            scr, title="T", items=[("一", ""), ("二", ""), ("三", ""), ("四", "")],
+            width=46, select=0, desc="说明", hint_rows=["a"], foot="f", min_w=46, boot=True)
+        self.assertEqual(got_w, box_w)
+        self.assertEqual(scr.row(top)[got_left], theme.G["tl"], "上边框不在预测的位置上")
+        self.assertEqual(scr.row(top + box_h - 1)[got_left], theme.G["bl"], "下边框不在预测的位置上")
+
+    def test_tall_panel_does_not_spill_over_the_hint_bar(self):
+        """浮层再高也要留住最下面一行提示栏（否则玩家看不到 Esc）。"""
+        for h, w in ((18, 62), (20, 80), (24, 100), (30, 118)):
+            scr = FakeScreen(h, w)
+            screens_mod.draw_panel(scr, title="T", items=[("一", ""), ("二", "")],
+                                   width=44, select=0, desc="说明",
+                                   hint_rows=["hint"], foot="f", min_w=34, boot=True)
+            self.assertLess(scr.row(h - 1).strip(), "z", f"{w}x{h}：提示栏被面板盖住了")
 
 
 class TestGlyphFallback(unittest.TestCase):

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import curses
+import os
 import pathlib
 import sys
 import unicodedata
@@ -261,6 +262,7 @@ def _scenario(seed=11):
 
 def build_scenes():
     """场景名 -> (标题, 渲染函数)。渲染函数画完后返回那张 RecordScreen。"""
+    from dnd import save as save_mod
     from dnd.ui import tui as tui_mod
 
     def tui_for(g, h, w, keys=(), **kw):
@@ -294,12 +296,79 @@ def build_scenes():
     scenes["end"] = ("阵亡结算", end)
 
     def creation():
-        from dnd.ui.tui import creation_screen
-        scr = RecordScreen(30, 104, keys=[10])
+        from dnd.ui.screens import creation_screen
+        scr = RecordScreen(32, 104, keys=[10])
         creation_screen(scr, no_color=False, initial_name="Aria",
                         initial_class="wizard", initial_race="elf")
         return scr
     scenes["creation"] = ("建角界面", creation)
+
+    def start_menu():
+        """开始页：玩家看到的第一屏（↑↓ 选菜单，回车确认）。"""
+        from dnd.ui.screens import start_screen
+        scr = RecordScreen(32, 104, keys=[curses.KEY_DOWN, 27])
+        start_screen(scr, no_color=False)
+        return scr
+    scenes["start"] = ("开始页（启动后的第一屏）", start_menu)
+
+    def start_small():
+        from dnd.ui.screens import start_screen
+        scr = RecordScreen(20, 80, keys=[27])
+        start_screen(scr, no_color=False)
+        return scr
+    scenes["start_small"] = ("开始页 · 矮窗口 80x20", start_small)
+
+    def save_manager():
+        """存档管理：左列表右档案，不用输命令就能看/读/删存档。"""
+        from dnd.ui import screens
+        from dnd.game import Game as GameCls
+        tmp = ROOT / "out" / "preview-saves"
+        save_mod.SAVE_DIR = tmp
+        for name, klass, race, depth, mtime in (
+                ("Aria", "wizard", "elf", 3, 300.0),
+                ("Borin", "warrior", "dwarf", 9, 200.0),
+                ("Nix", "rogue", "gnome", 5, 100.0)):
+            game = GameCls(21, name, klass, race_id=race)
+            game.depth, game.turn = depth, 400 + depth * 37
+            game.player.level, game.player.gold = 4, 268
+            game.player.hp, game.player.max_hp = 19, 31
+            save_mod.save_game(game)
+            os.utime(save_mod.save_path(name), (mtime, mtime))
+        (tmp / "broken.json").write_text("{ 这不是 JSON", encoding="utf-8")
+        scr = RecordScreen(24, 104, keys=[curses.KEY_DOWN, 27])
+        screens.save_manager_screen(scr, no_color=False)
+        return scr
+    scenes["saves"] = ("存档管理（列表 + 角色档案）", save_manager)
+
+    def save_manager_empty():
+        """空状态：存档管理必须自己说清楚"怎么才会有存档"。"""
+        from dnd.ui import screens
+        empty = ROOT / "out" / "preview-saves-empty"
+        empty.mkdir(parents=True, exist_ok=True)
+        for stale in empty.glob("*.json"):
+            stale.unlink()
+        save_mod.SAVE_DIR = empty
+        scr = RecordScreen(22, 96, keys=[27])
+        screens.save_manager_screen(scr, no_color=False)
+        return scr
+    scenes["saves_empty"] = ("存档管理 · 还没有存档", save_manager_empty)
+
+    def confirm_dialog():
+        """删除确认框：危险操作默认停在「取消」，一路敲回车也不会误删。"""
+        from dnd.ui import screens
+        tmp = ROOT / "out" / "preview-saves"
+        save_mod.SAVE_DIR = tmp
+        scr = RecordScreen(24, 104, keys=[ord("d"), 27, 27])
+        screens.save_manager_screen(scr, no_color=False)
+        return scr
+    scenes["confirm"] = ("删除确认框（默认「取消」）", confirm_dialog)
+
+    def resume_menu():
+        """游戏内 Esc 菜单：继续 / 保存 / 存档管理 / 回开始页 / 退出。"""
+        t7, s7 = tui_for(_scenario(), 30, 118)
+        t7.handle_key(27)
+        return s7
+    scenes["pause"] = ("游戏内 Esc 菜单", resume_menu)
 
     def sized(h, w, **kw):
         def run():

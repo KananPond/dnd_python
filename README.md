@@ -17,11 +17,14 @@
 ```bash
 ./play.sh                                         # 唯一入口：Linux / macOS / WSL2 通用（自动查 Python、终端、编码）
 ./play.sh --check                                 # 只做环境自检并打印报告，不启动游戏（报 bug 时请附上它）
-./play.sh --seed 42 --name Aria --class wizard --race elf   # 三个都给出才跳过建角；只给一部分会进建角并预填
-# 建角界面：输入姓名 → ↑↓ 选职业 → Tab / Shift+Tab / ←→ 切到种族栏 → ↑↓ 选种族 → 回车开始
-#           （活动栏整行反白并带 ▸，另一栏用 · 标出当前选择：一眼能看出 ↑↓ 会动哪一栏）
-./play.sh --latest                                # 读最近存档
-./play.sh --list-saves                            # 列出存档
+# 启动后是「开始页」：↑↓ 选 新的冒险 / 读取存档 / 名人堂 / 退出游戏，回车确认。
+#   新的冒险 → 建角：输入姓名 → ↑↓ 选职业 → Tab / Shift+Tab / ←→ 切到种族栏 → ↑↓ 选种族 → 回车开始
+#   读取存档 → 存档管理：↑↓ 选、回车读、D 删（带确认框），不用输任何命令
+# 游戏内按 Esc 打开暂停菜单：继续 / 保存 / 存档管理 / 返回开始页 / 退出。
+./play.sh --seed 42 --name Aria --class wizard --race elf   # 三个都给出才跳过开始页直接开局；只给一部分会进建角并预填
+./play.sh --latest                                # 读最近存档（跳过开始页）
+./play.sh --menu                                  # 参数再全也先回开始页
+./play.sh --list-saves                            # 列出存档（脚本用；游戏里用「读取存档」界面）
 ./play.sh --roster                                # 打印名人堂
 ./play.sh --headless-demo 300 --seed 5            # 无终端环境自检（跑 300 回合）
 ./play.sh --modern --debug                        # 现代模式（免死一次）+ 调试键
@@ -63,11 +66,13 @@ python3 -m dnd --seed 42
 | `i` | 背包（按字母使用/装备/喝/读） | `c` | 施法（按字母选择） |
 | `F5` 或 `Shift+S` | 存档 | `R` | 名人堂名册 |
 | `?` | 帮助（含考据说明） | `P` | 切换侧栏出处标记 |
-| `Q` | 退出（需确认） | `x` / `t` | 调试：全图 / 传送（仅 `--debug`） |
+| `Q` | 退出（需确认） | `Esc` | **暂停菜单**（继续/保存/存档管理/回开始页/退出） |
+| `x` / `t` | 调试：全图 / 传送（仅 `--debug`） | ↑↓ + 回车 | 所有菜单都能只用方向键走完 |
 
 ## 玩法
 
-建角（**4 职业 × 4 种族**，↑↓ 选择，Tab / Shift+Tab / ←→ 在两栏之间切换）→ 潜入 10 层地牢 → 探索、战斗、拾宝、升级 → 第 10 层夺取「深渊遗物」即胜利。
+开始页（↑↓ + 回车）→ 新的冒险 / 读取存档 → **建角**（4 职业 × 4 种族，↑↓ 选择，Tab / Shift+Tab / ←→ 在两栏之间切换）
+→ 潜入 10 层地牢 → 探索、战斗、拾宝、升级 → 第 10 层夺取「深渊遗物」即胜利。
 死亡即永久消失（角色进名人堂，存档被删除）；`--modern` 模式可免死一次。
 
 - 战斗：d20 + 命中加值 vs 上升式 AC，20 暴击（双倍伤害），1 必失手
@@ -94,13 +99,14 @@ dnd/                 游戏包（python3 -m dnd）
   ui/theme.py        配色与字形（PLATO 琥珀色观感；真彩/256/8 色三级降级 + Unicode/ASCII 字形集 + 光照层次）
   ui/widgets.py      绘制辅助（框线/分隔线/进度条/按键提示，按显示宽度裁剪中文）
   ui/describe.py     物品/法术说明（内部 effect id -> 玩家看得懂的一句话）
-  ui/tui.py          curses 主界面与浮层
-  __main__.py        命令行入口
+  ui/tui.py          curses 主界面与浮层（游戏内）
+  ui/screens.py      开始页 / 存档管理 / 建角（↑↓ 驱动的开局三屏，面板排版只在这里算一次）
+  __main__.py        命令行入口与「开始页 ↔ 建角 ↔ 地牢」主循环
 tools/sim.py         无头机器人跑批（平衡性回归）
 tools/pty_smoke.py   真实伪终端（tmux）里的 TUI 冒烟测试
 tools/preview.py     把界面渲染成 PNG 供人工审阅（需要 Pillow，仅开发用）
 tests/test_core.py   内核单元测试（27 项，unittest）
-tests/test_tui.py    TUI 布局测试（22 项，假 curses 屏幕；含框线/裁剪/说明文案回归）
+tests/test_tui.py    TUI 布局测试（50+ 项，假 curses 屏幕；含菜单光标、存档管理、框线/裁剪/面板几何回归）
 tests/test_cli.py    CLI/读档路径测试（4 项，伪终端启动 TUI）
 docs/                研究档案（史料）、复刻计划（设计与进度）、上手指南
 saves/               存档与 roster.json（存档不入库）
@@ -123,19 +129,21 @@ out/                 机器人跑批与界面预览输出（gitignore）
 
 ```bash
 ./play.sh --check                          # 最快的一道体检：平台/Python/curses/终端编码/尺寸，一次全打印
-python3 -m unittest discover -s tests -v   # 59 项：内核 27 / TUI 布局 26 / CLI 入口 6（含伪终端启动真实 TUI）
-python3 tools/pty_smoke.py                 # 23 项 TUI 冒烟：启动、渲染、按键、浮层、建角（Tab/Shift+Tab 切栏）、F5 存档、读档续玩、退出
+python3 -m unittest discover -s tests -v   # 98 项：内核 / TUI 布局（含开始页、存档管理、面板几何）/ CLI 入口（含伪终端启动真实 TUI）
+python3 tools/pty_smoke.py                 # 37 项 TUI 冒烟：开始页（↑↓）、建角、渲染、按键、浮层、F5 存档、存档管理读档、Esc 菜单、退出
 python3 -m dnd --headless-demo 300 --seed 5
 python3 tools/sim.py --runs 60 --class warrior    # 机器人跑批统计（--json out/sim.json 可落盘）
 python3 tools/preview.py                   # 把界面渲染成 PNG（改界面时用来"看一眼"，需要 Pillow）
 ```
 
 `tests/` 分工：`test_core.py`（内核：RNG/骰子/生成/视野/战斗/种族/存档/回放/回归）、
-`test_tui.py`（假 curses 屏幕渲染：日志区/侧栏/浮层是否越界、中文按显示宽度裁剪、Unicode/ASCII 字形切换、说明文案）、
+`test_tui.py`（假 curses 屏幕渲染：开始页光标、存档管理列表/详情/删除确认、暂停菜单、日志区/侧栏/浮层是否越界、
+面板排版公式、中文按显示宽度裁剪、Unicode/ASCII 字形切换、说明文案）、
 `test_cli.py`（命令行参数与 `--load` 启动路径）。
 
 改界面的工作流：`test_tui.py` 断言**布局关系**（谁压谁、有没有越界），`tools/preview.py` 给出**观感**
-（渲染成 PNG，12 个场景：主界面/背包/法术/帮助/名人堂/结算/建角/最小尺寸/窄窗口/过小窗口/ASCII 兜底/放大）。
+（渲染成 PNG，17 个场景：开始页/存档管理（含空状态与删除确认）/建角/主界面/背包/法术/帮助/名人堂/结算/
+Esc 菜单/最小尺寸/窄窗口/过小窗口/ASCII 兜底/放大）。
 
 ## 远端仓库
 
@@ -177,7 +185,7 @@ git push github main:master       # 推 GitHub（需要 GitHub 账号凭据；�
   设计意图是"引开它、再冲刺抢遗物"——隔离模拟里冲刺抢宝成功率约 18%~50%（随等级/药水/装备提升）。
   守卫必定生成，且遗物就放在它身边（不会压在它脚下，否则必须杀掉打不过的 boss 才能通关）。
 - 金币目前只作计分，尚无商店/祭坛等消耗途径。
-- 尚未实现：多角色槽位与存档导入导出 UI、通关回程（带遗物返回地面）、洞穴型/主题化层、音效、i18n、分享串。
+- 尚未实现：多角色槽位（存档仍按角色名一人一档）、存档导入导出、通关回程（带遗物返回地面）、洞穴型/主题化层、音效、i18n、分享串。
 - 尚未核实：原版的职业/法术/层数/胜利条件（拿到资料后只需替换 `dnd/data/*.json`，无需改代码）。
 - 开发注意：`ui/theme.py` 在模块级 import curses，新增 UI 引用请照 `__main__.py` 的写法**延迟导入**，
   否则 `--headless-demo` / `--list-saves` 在无 curses 的环境（Windows 原生 Python）会直接崩。

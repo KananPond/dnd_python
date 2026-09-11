@@ -22,20 +22,22 @@ import os
 from dataclasses import dataclass
 
 from .. import save as save_mod
-from ..entities import BASE_FOV_RADIUS as BASE_FOV
 from ..game import Game
 from ..level import MAX_DEPTH
-from . import describe, theme
+from . import describe, screens, theme
+from .screens import _creation_layout, creation_screen  # noqa: F401  （对外保留旧路径）
 from .widgets import (_width, bar, center, clip, fill, frame, hint_bar, pad_to,
                       put, rule)
 
-MIN_W, MIN_H = 62, 18
+MIN_W, MIN_H = screens.MIN_W, screens.MIN_H
+PAUSE_W = 44          # 暂停面板固定这个宽度（确认框要盖住它，宽高必须一致）
+PAUSE_HINT = "↑↓ 选择    回车确认    Esc 返回"
 LOG_LINES = 5
 SIDE_W = 26
 HEADER_ROWS = 2
 _BOTTOM_ROWS = LOG_LINES + 2     # 分隔线 + 日志 + 提示栏
 
-ATTR_ZH = {"STR": "力量", "DEX": "敏捷", "CON": "体质", "INT": "智力", "WIS": "感知"}
+ATTR_ZH = screens.ATTR_ZH
 
 MOVE_KEYS = {
     # 主键位：WASD；同时保留方向键、hjkl 与 yubn（斜向）
@@ -50,12 +52,13 @@ MOVE_KEYS = {
 HINTS = [
     ("WASD", "移动"), ("i", "背包"), ("c", "施法"), ("g", "拾取"),
     (">", "下楼"), ("<", "上楼"), ("?", "帮助"), ("F5", "存档"),
-    ("R", "名册"), ("Q", "退出"),
+    ("R", "名册"), ("Esc", "菜单"), ("Q", "退出"),
 ]
 
-# 建角界面切换"职业栏 / 种族栏"的键。KEY_BTAB = Shift+Tab（终端发 \x1b[Z），
-# 很多终端/多路复用器把它当"上一栏"，原先漏了它，种族栏就只剩 Tab 和 ←→ 三条路。
-FOCUS_KEYS = frozenset({ord("\t"), curses.KEY_BTAB, curses.KEY_LEFT, curses.KEY_RIGHT})
+# 浮层菜单（暂停菜单 / 存读档列表）里的上下移动与确认键
+MENU_UP = screens.MENU_UP
+MENU_DOWN = screens.MENU_DOWN
+ENTER_KEYS = screens.ENTER_KEYS
 
 
 @dataclass
@@ -105,6 +108,7 @@ class Tui:
 
     # ------------------------------------------------------------- 主循环
     def run(self) -> None:
+        """跑一局（或读档后的一局）。返回 = 回到开始页（见 pause_screen 的返回值）。"""
         while True:
             self.draw()
             key = self.scr.getch()
@@ -142,12 +146,9 @@ class Tui:
         elif ch == "P":
             self.show_provenance = not self.show_provenance
         elif key == curses.KEY_F5 or ch == "S":
-            try:
-                path = save_mod.save_game(g)
-            except (OSError, TypeError, ValueError) as exc:
-                g.message(f"保存失败：{exc}", "bad")
-            else:
-                g.message(f"已保存：{path}", "good")
+            self.save_game_here()
+        elif key == 27:                    # Esc：暂停菜单（原先只清一句提示，太浪费）
+            self.pause_screen()
         elif ch == "x" and self.debug:
             g.command(("reveal",))
         elif ch == "t" and self.debug:
@@ -155,8 +156,15 @@ class Tui:
         elif ch in ("Q",):
             if self.confirm("不保存并退出？"):
                 raise SystemExit(0)
-        elif key == 27:
-            self.message = ""
+
+    def save_game_here(self) -> None:
+        """存档并把路径写进消息日志（失败只报错，绝不打断这一局）。"""
+        try:
+            path = save_mod.save_game(self.game)
+        except (OSError, TypeError, ValueError) as exc:
+            self.game.message(f"保存失败：{exc}", "bad")
+        else:
+            self.game.message(f"已保存：{path}", "good")
 
     # ---------------------------------------------------------------- 绘制
     def draw(self) -> None:
@@ -520,6 +528,97 @@ class Tui:
         curses.doupdate()
         return self.scr.getch()
 
+    # ------------------------------------------------------------ 暂停菜单
+    PAUSE_ITEMS = [
+        ("继续游戏", "回到地牢"),
+        ("保存进度", "F5"),
+        ("存档管理", "读取 / 删除已有存档"),
+        ("返回开始页", "未保存的进度会丢"),
+        ("退出游戏", "直接结束进程"),
+    ]
+
+    def pause_screen(self) -> None:
+        """Esc 打开的暂停菜单：↑↓ 选择、回车确认、Esc 返回游戏。
+
+        「存档管理」就是开始页那个界面（screens.save_manager_screen）——游戏内外同一个
+        入口，读档、删档都不需要回命令行。
+        """
+        items = self.PAUSE_ITEMS
+        actions = ("resume", "save", "saves", "title", "quit")
+        select = 0
+        while True:
+            region, _panel_h, panel_w = self._pause_rect()
+            screens.draw_panel(
+                self.scr, title="菜单 · 已暂停", items=items, width=panel_w, select=select,
+                desc=items[select][1], hint_rows=[PAUSE_HINT],
+                foot="Esc 返回游戏", min_w=PAUSE_W, boot=self.no_color,
+                region_w=region)
+            self.scr.noutrefresh()
+            curses.doupdate()
+            key = self.scr.getch()
+            if key == curses.KEY_RESIZE:
+                continue                            # 下一轮重算 layout，面板跟着挪
+            if key in MENU_UP:
+                select = (select - 1) % len(items)
+            elif key in MENU_DOWN:
+                select = (select + 1) % len(items)
+            elif key in ENTER_KEYS or (0 <= key < 256 and chr(key) == " "):
+                action = actions[select]
+                if action == "resume":
+                    self.message = ""
+                    return
+                if action == "save":
+                    self.save_game_here()
+                    return
+                if action == "saves":
+                    self.saves_screen()
+                    continue
+                if action == "title":
+                    self.draw()          # 先退回地牢画面：确认框不叠在菜单面板上
+                    if self.confirm("返回开始页？（未保存的进度会丢失）"):
+                        return
+                    continue
+                if action == "quit":
+                    self.draw()
+                    if self.confirm("不保存并退出？"):
+                        raise SystemExit(0)
+                    continue
+            elif key == 27:
+                self.message = ""
+                return
+
+    def _pause_rect(self) -> tuple[int, int, int]:
+        """(游玩区宽度, 暂停面板外高, 暂停面板外宽)。
+
+        尺寸只在这里算一次：画暂停菜单和（需要时）跟它对齐的浮层都用同一份公式。
+        必须返回**游玩区**宽度而不是窗口宽度 —— 面板跨到侧栏上会擦掉它的左边框却
+        留下内容，看起来就是"金币"变成"币"这种坏掉的界面。
+        """
+        L = self.layout()
+        region = (L.map_left + L.map_w - 1) if L.side else L.w
+        _, box_h, box_w = screens.panel_rect(
+            L.h, region, items=len(self.PAUSE_ITEMS), desc=True, hint_rows=[1],
+            width=PAUSE_W, min_w=PAUSE_W, region_w=region)
+        return region, box_w, box_h
+
+    def saves_screen(self) -> None:
+        """游戏内的存档管理：读档成功就换掉当前这一局。"""
+        game = screens.save_manager_screen(self.scr, self.no_color)
+        if game is None:
+            return
+        self.game = game
+        self.roster_recorded = False
+        self.message = ""
+
+    def roster_screen(self) -> None:
+        # 名册里存的是**已本地化的名字**（record_roster 写的是 class_name()/race_name()），
+        # 所以这里直接显示，不要再拿它去查数据表——content.race() 对未知 id 会静默退回"人类"，
+        # 一旦数据表换了 id 就会把精灵显示成人类。
+        entries = save_mod.read_roster()
+        rows = ([(("还没有冒险者留下战绩。", "mem"))]
+                if not entries else screens.roster_rows(entries))
+        self._overlay("名人堂", rows)
+
     def help_screen(self) -> None:
         def keys(*pairs) -> str:
             """两个"键位 说明"列，按显示宽度补齐 —— 中文说明也能对齐。"""
@@ -541,8 +640,8 @@ class Tui:
             (keys(("下楼梯", ">"), ("上楼梯", "<")), "info"),
             (keys(("背包", "i"), ("施法", "c")), "info"),
             (keys(("存档", "F5 或 Shift+S"), ("名册", "R")), "info"),
-            (keys(("帮助", "?"), ("出处标记", "P")), "info"),
-            (keys(("退出", "Q"), ("", "")), "info"),
+            (keys(("菜单", "Esc（存档/读档/退出）"), ("帮助", "?")), "info"),
+            (keys(("出处", "P 标出处层"), ("退出", "Q（直接退出）")), "info"),
             ("", "amber"),
             ("── 目标", "frame"),
             ("下到第 10 层夺取「深渊遗物」，活着回来即为胜利。", "good"),
@@ -605,43 +704,15 @@ class Tui:
         # 名册里存的是**已本地化的名字**（record_roster 写的是 class_name()/race_name()），
         # 所以这里直接显示，不要再拿它去查数据表——content.race() 对未知 id 会静默退回"人类"，
         # 一旦数据表换了 id 就会把精灵显示成人类。
+        # 行格式与开始页的名人堂共用 screens.roster_rows，两处不会各写一份而对不齐。
         entries = save_mod.read_roster()
-        rows = []
-        if not entries:
-            rows.append(("还没有冒险者留下战绩。", "mem"))
-        else:
-            rows.append((pad_to("名字", 10) + pad_to("种族", 7) + pad_to("职业", 7)
-                         + pad_to("等级", 6) + pad_to("深度", 6) + pad_to("结果", 6)
-                         + pad_to("金币", 8) + "回合", "frame"))
-            for e in entries[-12:]:
-                won = e["result"] == "won"
-                rows.append((pad_to(e["name"], 10)
-                             + pad_to(e.get("race", "—"), 7)
-                             + pad_to(e.get("class", "—"), 7)
-                             + pad_to(f"{e['level']}级", 6)
-                             + pad_to(str(e["depth"]), 6)
-                             + pad_to("胜利" if won else "阵亡", 6)
-                             + pad_to(str(e["gold"]), 8)
-                             + str(e["turns"]),
-                             "good" if won else "bad"))
+        rows = ([("还没有冒险者留下战绩。", "mem")]
+                if not entries else screens.roster_rows(entries))
         self._overlay("名人堂", rows)
 
     def confirm(self, question: str) -> bool:
-        """居中的确认框（比把提示写在底部提示栏里看得清楚）。"""
-        L = self.layout()
-        rows = [(question, "bright"), ("", "amber"), ("[y] 确定    [n] 取消", "dim")]
-        box_w, left = self._modal_box(L, _width(question) + 6, 34)
-        box_h = 5
-        top = max(0, L.h // 2 - box_h // 2)
-        for i in range(box_h - 2):
-            fill(self.scr, top + 1 + i, left + 1, box_w - 2, " ", 0)
-        frame(self.scr, top, left, box_h, box_w, "确认", self.a("panel"))
-        for i, (text, color) in enumerate(rows):
-            put(self.scr, top + 1 + i, left + 2, text, self.a(color))
-        self.scr.noutrefresh()
-        curses.doupdate()
-        key = self.scr.getch()
-        return key in (ord("y"), ord("Y"))
+        """[确定 / 取消] 确认框，画在游戏画面上（调用方先重画一帧，别叠在菜单面板上）。"""
+        return screens.confirm_choice(self.scr, question, no_color=self.no_color)
 
     def end_screen(self, key: int) -> bool:
         """返回 True 表示退出程序。"""
@@ -679,153 +750,3 @@ class Tui:
             return True
         return False
 
-
-# ------------------------------------------------------------------ 建角界面
-def _creation_layout(h: int, w: int) -> dict:
-    """建角界面的分行（自适应终端高度）。
-
-    硬性要求：4 个职业/种族选项必须完整可见，页脚不许盖住列表。
-    空间不够时依次舍弃：提示 → 预览 → 说明，但"姓名 + 两个选项栏 + 页脚"永远保留。
-    """
-    name_row = 3
-    panel_top = name_row + 2
-    panel_h = 6                      # 上下边框 + 4 个选项
-    blurb = panel_top + panel_h + 1
-    footer = h - 4                   # 框内最后一行（下边框在 h-3）
-    preview_top = blurb + 2
-    return {
-        "name": name_row, "panel_top": panel_top, "panel_h": panel_h,
-        "blurb": blurb, "footer": footer,
-        "preview_top": preview_top,
-        "show_blurb": blurb + 1 < footer,
-        "show_preview": preview_top + 3 < footer,
-        "show_tips": preview_top + 3 + 5 < footer,
-    }
-
-
-def creation_screen(stdscr, no_color: bool = False, *, initial_name: str = "",
-                    initial_class: str | None = None, initial_race: str | None = None):
-    """建角：输入姓名，↑↓ 选择职业与种族。返回 (name, class_id, race_id)。
-
-    initial_* 用来预填命令行（--name/--class/--race）给的值，避免用户已经写过的参数被丢掉。
-    """
-    from ..content import load as load_content
-    content = load_content()
-    class_ids = ["warrior", "wizard", "cleric", "rogue"]
-    race_ids = ["human", "elf", "dwarf", "gnome"]
-
-    def label(entry: dict) -> str:
-        """中文名优先；若数据表里另有英文名则附在后面。"""
-        zh = entry.get("name_zh") or entry.get("name", "")
-        en = entry.get("name", "")
-        return f"{zh}（{en}）" if en and en != zh and en.isascii() else zh
-
-    theme.init_colors(no_color)  # 建角界面在 Tui 之前就要用配色
-    a = lambda n, b=False: theme.attr(n, no_color, b)  # noqa: E731
-
-    name = (initial_name or "").strip()[:14]
-    focus = 0  # 0 = 职业栏，1 = 种族栏
-    ci = class_ids.index(initial_class) if initial_class in class_ids else 0
-    ri = race_ids.index(initial_race) if initial_race in race_ids else 0
-    # 建角跑在 Tui 之前，别指望调用方开过 keypad：没开时方向键会以 ESC 序列到达，
-    # 命中下面 `key == 27` 的分支直接把游戏退出。这里自己开一次（幂等）。
-    stdscr.keypad(True)
-    curses.curs_set(1)
-    while True:
-        stdscr.erase()
-        h, w = stdscr.getmaxyx()
-        if w < MIN_W or h < MIN_H:  # 太小就别画半截界面（游戏内也是同样的提示）
-            center(stdscr, h // 2, "终端窗口太小", a("bad", True))
-            center(stdscr, h // 2 + 1, f"建角需要 {MIN_W}x{MIN_H}，当前 {w}x{h}", a("amber"))
-            stdscr.noutrefresh()
-            curses.doupdate()
-            if stdscr.getch() == 27:
-                raise SystemExit(0)
-            continue
-        R = _creation_layout(h, w)
-        frame(stdscr, 1, 2, h - 3, w - 5, "DND · 创建冒险者", a("frame"))
-        put(stdscr, R["name"], 4, "姓名", a("dim"))
-        put(stdscr, R["name"], 4 + 5, name + "_", a("bright", True))
-
-        # 两栏选项：职业 / 种族
-        col_w = min(30, (w - 14) // 2)
-        boxes = [(4, "职业", class_ids, ci, focus == 0, content.klass),
-                 (4 + col_w + 4, "种族", race_ids, ri, focus == 1, content.race)]
-        for bx, head, ids, sel, active, lookup in boxes:
-            # 活动栏用最亮的琥珀 + 加粗，非活动栏落到最暗一档。
-            # 这里不能拿 "far" 当非活动色：它(205,140,0)比 "frame"(150,110,55)还亮，
-            # 会把光标所在的那一栏衬得比非活动栏更不起眼 —— 焦点就"看不见"了。
-            frame(stdscr, R["panel_top"], bx, R["panel_h"], col_w, head,
-                  a("amber" if active else "mem", active))
-            for i, oid in enumerate(ids):
-                row = R["panel_top"] + 1 + i
-                item = f"{i + 1}. {label(lookup(oid))}"
-                if i != sel:
-                    put(stdscr, row, bx + 2, clip(f"  {item}", col_w - 4), a("dim"))
-                elif active:
-                    # 光标行：整行反白 + ▸。全屏只有活动栏会出现这个标记，一眼可辨。
-                    fill(stdscr, row, bx + 1, col_w - 2, " ", a("sel"))
-                    put(stdscr, row, bx + 2,
-                        clip(f"{theme.G['sel']} {item}", col_w - 4), a("sel", True))
-                else:
-                    # 非活动栏只标出"当前选的是哪个"（·），不反白：
-                    # 两栏都反白时用户看不出 ↑↓ 会动哪一栏，就会以为种族栏选不了。
-                    put(stdscr, row, bx + 2,
-                        clip(f"{theme.G['dot']} {item}", col_w - 4), a("amber"))
-
-        klass = content.klass(class_ids[ci])
-        race = content.race(race_ids[ri])
-        if R["show_blurb"]:
-            put(stdscr, R["blurb"], 5, clip(klass["blurb"], w - 12), a("dim"))
-            put(stdscr, R["blurb"] + 1, 5, clip(race["blurb"], w - 12), a("dim"))
-        if R["show_preview"]:
-            mods = " ".join(f"{ATTR_ZH.get(k, k)} {v:+d}" for k, v in race.get("mods", {}).items())
-            frame(stdscr, R["preview_top"], 4, 4, w - 9, "预览", a("mem"))
-            put(stdscr, R["preview_top"] + 1, 6,
-                clip(f"{label(race)}·{label(klass)}     生命骰 d{klass['hit_die']}     "
-                     f"初始生命 +{3 + int(race.get('hp_bonus', 0))}    "
-                     f"每级法力 {klass.get('mp_per_level', 0)}", w - 13), a("info"))
-            put(stdscr, R["preview_top"] + 2, 6,
-                clip(f"视野 {BASE_FOV + int(race.get('fov_bonus', 0))}    {mods or '属性无调整'}",
-                     w - 13), a("magic"))
-        if R["show_tips"]:
-            tips = [
-                ("目标：下到第 10 层夺取「深渊遗物」，活着回来。", "good"),
-                ("操作：WASD 移动 · g 拾取 · i 背包 · c 施法 · > 下楼", "dim"),
-                ("地牢：走过的地方会留暗色记忆，敌人只在视野内可见。", "dim"),
-            ]
-            for i, (text, color) in enumerate(tips):
-                put(stdscr, R["preview_top"] + 4 + i, 5, clip(text, w - 12), a(color))
-        put(stdscr, R["footer"], 5,
-            "↑↓ 选择    Tab / ←→ 切换职业与种族    1-4 直选    回车开始    Esc 退出", a("dim"))
-        stdscr.noutrefresh()
-        curses.doupdate()
-        key = stdscr.getch()
-        if key == curses.KEY_RESIZE:
-            continue
-        if key == curses.KEY_UP:
-            if focus == 0:
-                ci = (ci - 1) % len(class_ids)
-            else:
-                ri = (ri - 1) % len(race_ids)
-        elif key == curses.KEY_DOWN:
-            if focus == 0:
-                ci = (ci + 1) % len(class_ids)
-            else:
-                ri = (ri + 1) % len(race_ids)
-        elif key in FOCUS_KEYS:
-            focus = 1 - focus
-        elif 0 <= key < 256 and chr(key) in "1234":
-            if focus == 0:
-                ci = int(chr(key)) - 1
-            else:
-                ri = int(chr(key)) - 1
-        elif key in (curses.KEY_BACKSPACE, 127, 8):
-            name = name[:-1]
-        elif key in (10, 13, curses.KEY_ENTER):
-            curses.curs_set(0)
-            return (name.strip() or "冒险者"), class_ids[ci], race_ids[ri]
-        elif key == 27:
-            raise SystemExit(0)
-        elif 0 <= key < 256 and chr(key).isprintable() and len(name) < 14:
-            name += chr(key)
