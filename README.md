@@ -203,27 +203,22 @@ out/                   机器人跑批与界面预览输出（gitignore）
 
 ## 远端仓库
 
-本仓库同时发布在两个平台，内容一致：
+本仓库同时发布在两个平台，内容一致，**两边都只保留一个分支 `master`**（本地分支也叫 `master`）：
 
-| 平台 | 地址 | 默认分支 |
+| 平台 | 地址 | 分支 |
 |---|---|---|
 | Gitee（主） | https://gitee.com/shenzhenshiguanfminquxinhujiedao/dnd_python | `master` |
-| GitHub | https://github.com/KananPond/dnd_python | `main` |
-
-两个远端都同时存在 `main` 与 `master` 两个分支，且**保持指向同一个提交**（本仓库历史上先用了 `master`，
-后来主线改用 `main`；为避免访问者看到旧代码，每次推送都会把两边一起同步）。
+| GitHub | https://github.com/KananPond/dnd_python | `master` |
 
 ```bash
-git remote -v                      # gitee / github 两个远端
-git push gitee main:main           # 推 Gitee 的 main
-git push gitee main:master         # 同步 Gitee 的 master（快进，非强推）
-git push github main:main          # 推 GitHub 的 main
-git push github main:master        # 同步 GitHub 的 master（快进，非强推）
+git remote -v          # gitee / github 两个远端
+git push gitee master   # 推 Gitee
+git push github master  # 推 GitHub
 ```
 
-> `main:master` 只有在 `master` 是 `main` 的祖先时才是快进；一旦两边分叉，普通 push 会被拒绝 ——
-> 这时**不要**直接 `--force`，先确认另一分支上有没有需要保留的提交。两个远端各自保存一份历史，
-> `--force` 请谨慎使用。
+> **历史说明**：本仓库早期同时存在 `main` 与 `master` 两个分支（两者曾指向同一提交，`master` 是旧主线、
+> `main` 是后来的主线）。为避免访问者在一个平台上看到旧代码，现已合并为单一的 `master`，两个远端的 `main`
+> 都已删除。两个远端各自保存一份历史，`--force` 请谨慎使用。
 
 ## 许可与合规
 
