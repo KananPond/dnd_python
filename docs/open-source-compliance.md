@@ -15,10 +15,10 @@
 |---|---|---|
 | 代码著作权 | ✅ 干净 | 全部自研，无第三方源码/片段、无 vendored 代码、无生成器产出的许可负担 |
 | 运行期依赖 | ✅ 零 | 游戏本体只用 Python 标准库（`curses` 属标准库，但不是所有平台都有）；`Pillow` 仅 `tools/preview.py` 需要，已标为可选依赖 |
-| 内容素材 | ✅ 干净 | 无图片/音频/字体/地图资源；怪物/物品/法术均为公有领域通用词或自创名 |
+| 内容素材 | ✅ 干净 | 无图片/音频/字体/地图资源；怪物/物品/法术均为公有领域通用词或自创名。**背景故事同样是自创世界**：游戏内序章（`dnd/data/lore.json`）与完整设定（`docs/world-setting.md`）只借用"失落浮空帝国 / 维系魔法的源流 / 地下幽暗世界 / 疯法师地牢"这类公共母题，名词全部自造，并有自动扫描守住（第五节第 1 条与 `tests/test_core.py::TestLore`） |
 | 与 PLATO《dnd》的关系 | ✅ 无代码派生 | 无原版 TUTOR 源码、无原版数据、无原版素材；只有玩法骨架与史实复述（见第三节） |
 | 商标风险 | 🟡 低但存在 | 项目名 `dnd` 与 WotC 商标同形；可接受，但需保持第四节的防护做法 |
-| 协议 | ✅ 已落地 | `LICENSE`（MIT）+ `dnd/data/LICENSE-CC0.txt`（CC0-1.0）双协议，五张数据表的 `_meta.license` 亦已标注 |
+| 协议 | ✅ 已落地 | `LICENSE`（MIT）+ `dnd/data/LICENSE-CC0.txt`（CC0-1.0）双协议，六张数据表的 `_meta.license` 亦已标注（含背景故事表） |
 | 作者身份/来源 | ✅ 已声明 | 本仓库由 AI 代理生成；模型、框架、插件与发布情况见 `README.md` 的「AI 参与声明」 |
 | 人工审查 | ⚠️ **无** | 代码与文档是 AI（`deepseek-flash` in DSH，high 思考强度）自主"调研→计划→开发→审查"多轮的产出，**从未经过人类 code review**；采用方如需问责，请把本文与 README 的验证记录当作"AI 自查"，并自行安排人工审查 |
 | 隐私/凭据 | ✅ 干净 | 无密钥、无 token、无个人数据；存档文件不入库且只含游戏状态 |
@@ -35,7 +35,7 @@
 | 范围 | 协议 | 文件 | 为什么 |
 |---|---|---|---|
 | 代码（`dnd/**.py`、`tests/`、`tools/`、`play.sh`、`pyproject.toml`） | **MIT** | `LICENSE` | 最宽松、最短、最被广泛理解；任何人可以 fork、改名、商用、闭源再发行，只需保留版权声明。对一个"供人玩、也供人改"的小型游戏最省事 |
-| 内容数据（`dnd/data/*.json`） | **CC0-1.0**（公共领域奉献） | `dnd/data/LICENSE-CC0.txt` | 数据表是本项目最希望被替换/再创作的部分。CC0 取消一切署名与传染义务，别人可以直接把自己的怪物表贴进任何项目。这与数据里 `_meta.confidence: invented`（"可整体替换"）的设计意图一致 |
+| 内容数据（`dnd/data/*.json`，含序章文本 `lore.json`） | **CC0-1.0**（公共领域奉献） | `dnd/data/LICENSE-CC0.txt` | 数据表是本项目最希望被替换/再创作的部分。CC0 取消一切署名与传染义务，别人可以直接把自己的怪物表、甚至整份世界观贴进任何项目。这与数据里 `_meta.confidence: invented`（"可整体替换"）的设计意图一致 |
 | 文档（`README.md`、`docs/**`、根目录检索报告） | 随代码走 MIT | 同 `LICENSE` | 文档含史实考据与出处链接，用最宽松的协议便于被引用 |
 
 被否掉的备选，以及否掉的理由：
@@ -52,7 +52,8 @@
 
 1. `pyproject.toml` 配了 `license = "MIT"` + `license-files = ["LICENSE"]`。
 2. `README.md` 的「许可与合规」一节写清了双协议与文件分布。
-3. 五个 `dnd/data/*.json` 的 `_meta` 都补了 `"license": "CC0-1.0"` 与 `license_note`（本轮核对确认）。
+3. 五个 `dnd/data/*.json` 的 `_meta` 都补了 `"license": "CC0-1.0"` 与 `license_note`；新增的
+   序章文本 `dnd/data/lore.json` 同样带 `license` / `confidence: invented` / `license_note`（六张表一致）。
 4. `LICENSE` 版权人写的是 `EudoraArcher (KananPond)`，同时覆盖 Gitee 与 GitHub 两个账号名。
 
 ---
@@ -64,7 +65,7 @@
 | 问题 | 判断 |
 |---|---|
 | 用了原版的代码吗？ | **没有**。原版是 PLATO TUTOR 语言写的 lesson 文件，本仓库无一行来自它，也从未获取过其源码（`docs/research-dossier.md` 第六节记录了检索局限）。因此**不存在代码层面的演绎作品**。 |
-| 用了原版的数值/怪物/法术表吗？ | **没有**。五张数据表全部标记 `confidence: invented`，`docs/research-dossier.md` 第四节把"原版数值"明确列为 C 类未确证项。 |
+| 用了原版的数值/怪物/法术表吗？ | **没有**。六张数据表全部标记 `confidence: invented`，`docs/research-dossier.md` 第四节把"原版数值"明确列为 C 类未确证项。 |
 | 复刻玩法本身侵权吗？ | **不**。著作权保护表达，不保护玩法、规则、机制。俯视地牢、逐层下潜、掷骰战斗、永久死亡属于不受保护的思想/规则层。 |
 | 用了原版的名称吗？ | 标题用了 `dnd`（作品名，见第四节）；正文与游戏内不出现原作者姓名以外的品牌标识，也没有把原作者的名义安到本项目上。**未声称是官方版本或原作者授权版本** —— README 首屏写明"非官方现代复刻、不做 1:1 还原"。 |
 | 原作者有权主张吗？ | 1975 年的作品若仍在版权期内，其权利人可主张的是**原版代码与素材**本身，而不是玩法。本项目未复制前者。为稳妥，README 与本文档都明确标注来源与年代，不做"官方续作"暗示。 |
@@ -83,6 +84,10 @@
    `dnd/data/monsters.json` 的 `_meta`），属于叙述性使用。**不要**把它们放进项目简介、包名、PyPI 描述或 GitHub topics。
 2. **不用专有名词做内容**：43 个内容条目（4 职业 / 4 种族 / 12 怪物 / 18 物品 / 5 法术）已逐条核对，
    未出现任何 WotC 专有怪物、法术或设定名；法术名（魔法飞弹/护盾/闪电束/治疗轻伤/祝福）为通用描述性名称。
+   **背景故事同理**（游戏内序章 `dnd/data/lore.json` + 完整设定 `docs/world-setting.md`）：
+   阿瑟兰、银冠诸国、穹顶帝国、星核、织线、薇兰、深渊地牢等名号全部自造；写作前调研「被遗忘的国度」
+   只用于学结构，落地的名词一个都没沿用（母题 → 改造对照见 `docs/research-dossier.md` 第八节）。
+   这条线由 `tests/test_core.py::TestLore::test_story_text_has_no_wotc_proper_nouns` 自动守住。
    复核命令见第五节。后续新增内容时请沿用同一标准（通用奇幻词或自创名）。
 3. **非官方声明**：README 的「许可与合规」一节已写明"本项目与原作者、PLATO/cyber1 社区及
    Wizards of the Coast 均无关联，未获其授权或背书"。
@@ -97,17 +102,25 @@
 
 以下命令都是**可重复执行**的，输出为本文写作时的实测结果（排除 `.git`、`.mimosa`、`out`）。
 
-**1) 商标/专有名词扫描**
+**1) 商标/专有名词扫描**（本轮把背景故事层的设定名与「被遗忘的国度」相关词一并纳入）
 
 ```bash
-grep -rniE "dungeons|dragons|d&d|tsr|wotc|wizards of the coast|beholder|mind flayer|illithid|tiamat|bahamut|vecna|greyhawk|faerun|forgotten realms|d20 system" \
+grep -rniE "dungeons|dragons|d&d|tsr|wotc|wizards of the coast|beholder|mind flayer|illithid|tiamat|bahamut|vecna|greyhawk|faerun|faerûn|forgotten realms|d20 system|被遗忘的国度|费伦|耐色瑞尔|密斯特拉|幽暗地域|underdark|undermountain|netheril|mystra|menzoberranzan|lolth|elminster|drizzt|baldur|neverwinter|cormyr|toril|深水城|博德之门" \
   --include='*.py' --include='*.json' --include='*.md' --exclude-dir=.git --exclude-dir=.mimosa --exclude-dir=out .
 ```
 
-命中的文件全部是"声明不使用"的合规叙述或史实说明：`README.md`、`docs/open-source-compliance.md`（本文）、
-`docs/reimplementation-plan.md`、`docs/research-dossier.md`、`dnd_PLATO_1975_检索报告.md`、
-`dnd/data/monsters.json` 的 `_meta`。没有一处用作产品标识：**代码文件（`dnd/**.py`、`tests/`、`tools/`）零命中**；
-数据文件里唯一一处就是 `monsters.json` 那条 `_meta` 注释。
+命中集中在三类，**全部是叙述性使用，没有一处作为产品标识**：
+
+- **合规叙述**：`README.md`、`docs/open-source-compliance.md`（本文）、`docs/reimplementation-plan.md`，
+  `docs/world-setting.md`（引用守线测试的名字），以及 `docs/research-dossier.md` 第八节
+  （背景故事层的调研对照——说明"借用了哪个母题、换成了什么自创名"）；
+- **测试里的反向断言**：`tests/test_core.py` 的 `TestLore.FORBIDDEN` 是一份 denylist，命中是它**内容本身**；
+- **史料叙述**：`dnd_PLATO_1975_检索报告.md`（1975 原作的正式名 *The Game of Dungeons* 与来源链接）；
+- **数据表 `_meta` 的免责注释**：`dnd/data/monsters.json` 一处，写的是"不使用他方商标"。
+
+**游戏代码（`dnd/**.py`、`tools/`）、游戏运行时文本与序章数据表 `dnd/data/lore.json` 零命中**。故事正文的专有名词单独由
+`tests/test_core.py::TestLore::test_story_text_has_no_wotc_proper_nouns` 守住——它只扫故事正文
+（`lore.plain_text`），不扫 `_meta` 与文档里的合规注释，避免"连免责声明一起扫掉"。
 
 **2) 内容条目逐条目视核对**：43 条全部为公有领域通用奇幻词汇（哥布林/骷髅/巨魔/吸血鬼/食尸鬼/幽魂…）
 或自创名（深渊守卫/深渊遗物）。
@@ -159,7 +172,7 @@ git ls-files | xargs grep -nE '(/mnt/[a-z]/|/home/[a-z]|C:\\|/Users/)'
 **必须（否则等同于没开源）**
 
 - [x] `LICENSE`（MIT）放仓库根 —— 没有协议的开源项目默认"保留一切权利"，别人**不能合法使用**
-- [x] 数据目录的 CC0 声明（`dnd/data/LICENSE-CC0.txt` + 五张表的 `_meta.license`）
+- [x] 数据目录的 CC0 声明（`dnd/data/LICENSE-CC0.txt` + 六张表的 `_meta.license`，含序章文本 `lore.json`）
 - [x] `pyproject.toml`（包元数据 + 协议 + 可选依赖 + 入口点 + Python 版本底线）
 - [x] 跨平台启动脚本 `play.sh`（Linux / macOS / WSL2 统一入口）
 - [x] `README.md` 许可、平台支持与启动章节
@@ -199,6 +212,7 @@ git ls-files | xargs grep -nE '(/mnt/[a-z]/|/home/[a-z]|C:\\|/Users/)'
 | 无第三方源码 | 仓库没有 vendor/ 目录，也没有 vendored 单文件库；41 个受版本控制的文件全部自研（`git ls-files`） |
 | 无素材版权负担 | `git ls-files` 中无二进制资源；界面字符与配色由 `dnd/ui/theme.py` 代码生成 |
 | 数据表可自由替换 | `dnd/content.py` 运行期读 `dnd/data/*.json`；`_meta.confidence` 全为 `invented`，无一处声称来自原版 |
+| 背景故事为自创世界 | `dnd/data/lore.json` 的 `_meta` 标 `invented` + CC0；游戏内只放"世界/入井/须知"节选，细设定在 `docs/world-setting.md`；专有名词扫描由 `tests/test_core.py::TestLore` 自动执行；调研只借用公共母题，改造对照见 `docs/research-dossier.md` 第八节 |
 | 存档不含隐私 | `dnd/save.py` 只序列化 `Game.to_json()`（种子/回合/角色属性/地图/RNG 状态）；`saves/*.json` 在 `.gitignore` |
 | 无网络行为 | 全部 import 中无 `socket`/`urllib`/`http`/`requests`；游戏不联网、不检查更新、不回传统计 |
 | 无本机路径泄漏 | 第五节第 5 条扫描：除"平台默认字体路径"与本条命令自身外无命中 |

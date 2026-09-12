@@ -51,8 +51,8 @@ MOVE_KEYS = {
 
 HINTS = [
     ("WASD", "移动"), ("i", "背包"), ("c", "施法"), ("g", "拾取"),
-    (">", "下楼"), ("<", "上楼"), ("?", "帮助"), ("F5", "存档"),
-    ("R", "名册"), ("Esc", "菜单"), ("Q", "退出"),
+    (">", "下楼"), ("<", "上楼"), ("?", "帮助"), ("B", "背景"),
+    ("F5", "存档"), ("R", "名册"), ("Esc", "菜单"), ("Q", "退出"),
 ]
 
 # 浮层菜单（暂停菜单 / 存读档列表）里的上下移动与确认键
@@ -78,11 +78,13 @@ class Layout:
 
 
 class Tui:
-    def __init__(self, stdscr, game: Game, *, debug: bool = False, no_color: bool = False):
+    def __init__(self, stdscr, game: Game, *, debug: bool = False, no_color: bool = False,
+                 no_prologue: bool = False):
         self.scr = stdscr
         self.game = game
         self.debug = debug
         self.no_color = no_color
+        self.no_prologue = no_prologue       # 与 --no-prologue 一致：结算后按 n 重开也不再念序章
         self.show_provenance = False
         self.roster_recorded = False
         self.message = ""
@@ -141,6 +143,8 @@ class Tui:
             self.cast_screen()
         elif ch == "?":
             self.help_screen()
+        elif ch == "B":
+            self.background_screen()
         elif ch == "R":
             self.roster_screen()
         elif ch == "P":
@@ -641,7 +645,8 @@ class Tui:
             (keys(("背包", "i"), ("施法", "c")), "info"),
             (keys(("存档", "F5 或 Shift+S"), ("名册", "R")), "info"),
             (keys(("菜单", "Esc（存档/读档/退出）"), ("帮助", "?")), "info"),
-            (keys(("出处", "P 标出处层"), ("退出", "Q（直接退出）")), "info"),
+            (keys(("背景", "B 重看序章"), ("出处", "P 标出处层")), "info"),
+            (keys(("退出", "Q（直接退出）")), "info"),
             ("", "amber"),
             ("── 目标", "frame"),
             ("下到第 10 层夺取「深渊遗物」，活着回来即为胜利。", "good"),
@@ -651,10 +656,15 @@ class Tui:
             ("单屏地牢、逐层下潜、掷骰战斗、永久死亡属 L1 忠实层；", "magic"),
             ("键位/界面/视野/存档属 L2 现代化层；", "magic"),
             ("职业、法术、怪物和数值属 L3 再创作层（原版不可考）。", "magic"),
+            ("背景故事（B）同样是 L3 自创世界，不使用他方专有名词。", "magic"),
         ]
         if self.debug:
             rows.append(("调试：x 显示全图  t 传送（仅 --debug）", "bad"))
         self._overlay("帮助", rows)
+
+    def background_screen(self) -> None:
+        """重看序章（B）：与建角之后展示的是同一个界面、同一份数据。"""
+        screens.prologue_screen(self.scr, self.game.player.name, self.no_color)
 
     def inventory_screen(self) -> None:
         p = self.game.player
@@ -742,6 +752,8 @@ class Tui:
         self._overlay(title, rows, footer="种子可复现这座地牢（--seed）", min_w=52)
         if key in (ord("n"), ord("N")):
             name, class_id, race_id = creation_screen(self.scr, self.no_color)
+            if not self.no_prologue:
+                screens.prologue_screen(self.scr, name, self.no_color)
             seed = int.from_bytes(os.urandom(4), "big")
             self.game = Game(seed, name, class_id, modern=self.game.modern, race_id=race_id)
             self.roster_recorded = False

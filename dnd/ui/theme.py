@@ -100,6 +100,7 @@ UNICODE_GLYPHS = {
     "heavy_h": "━", "heavy_v": "┃",
     "bar_full": "█", "bar_half": "▓", "bar_empty": "░",
     "sel": "▸", "dot": "·", "sep": "·",
+    "up": "↑", "down": "↓",
 }
 ASCII_GLYPHS = {
     "tl": "+", "tr": "+", "bl": "+", "br": "+",
@@ -107,6 +108,7 @@ ASCII_GLYPHS = {
     "heavy_h": "=", "heavy_v": "|",
     "bar_full": "#", "bar_half": "+", "bar_empty": "-",
     "sel": ">", "dot": ".", "sep": "|",
+    "up": "^", "down": "v",
 }
 
 G: dict[str, str] = UNICODE_GLYPHS

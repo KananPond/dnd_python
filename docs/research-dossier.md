@@ -107,6 +107,11 @@
    均返回 200，而 `https://pypi.org/simple/` 在 20 秒内无响应。可见约束会随环境变化，
    但"只用标准库"已经是本项目的既定设计，不因网络恢复而改变。
 3. 因此本档案中凡标注 B/C 的内容，都**不能**直接当作原版事实引用；引用时请连可信度一起引用。
+4. **`web_fetch` 对多数站点不可达，能用的只有 `web_search` 的元数据**（第八节调研那一轮实测）：
+   同一环境下 `https://example.com` 返回 200，而 wikipedia、fandom、wikiwand 全部
+   `fetch failed`，`baike.baidu.com` 与 `britannica.com` 返回 403 验证页；本机 `curl` 直连同样超时。
+   所以第八节只能给出"标题/链接/通行说法"，凡涉及"原设定里长这样"的判断一律标 **B**，
+   并且只用于**设计灵感**，不作为本项目的事实断言。
 
 ## 七、这份档案如何影响实现（速查）
 
@@ -120,3 +125,66 @@
 | 角色持久化、永久死亡、名人堂文化（B/B+） | JSON 存档 + 名人堂名册 + 删档 | `save.py` |
 | 职业/法术/怪物/数值（C） | 全部自定，标 `invented`，可整体替换 | `data/*.json` |
 | 胜负条件（C） | 第 10 层守卫 + 遗物：**取得即胜利** | `level.py`、`game.py` |
+| 背景故事（C） | 借用公共母题、名词全部自创，标 `invented`，可整体替换；游戏内只展示节选 | `data/lore.json`、`lore.py`、`ui/screens.py`、`docs/world-setting.md` |
+
+---
+
+## 八、「被遗忘的国度」调研与改造对照
+
+> **用途**：这是背景故事层（`dnd/data/lore.json`）的调研底稿。第二节明确了 1975 原版的职业/剧情
+> 均不可考，所以本项目的世界观只能自己写。写作前调研了 D&D 最知名的战役设定
+> **「被遗忘的国度」（Forgotten Realms）**，学它的**结构**（一个失落帝国 + 一条维系魔法的源流 +
+> 一片地下世界 + 一座疯法师的地牢），再全部换成自创名词落地。
+
+### 8.1 借用了哪些母题、改成了什么
+
+| 母题 | 原设定里的样子 | 本项目的改造 | 可信度 |
+|---|---|---|---|
+| 失落的浮空魔法帝国 | 耐色瑞尔（Netheril）的浮空城，靠 `mythallar` 悬浮 | 穹顶帝国的七座浮空城，靠「星核」悬浮 | B |
+| 维系法术的世界源流 | 魔网（the Weave），由魔法女神密斯特拉照看 | 「织线」，由织法者薇兰照看 | B |
+| 帝国因窃取神权而崩落 | 卡萨斯之愚行（Karsus's Folly，−339 DR）：法师试图取代女神，魔网崩溃、浮空城坠落 | 「断裂之夜」：大法师奥兰试图攫取薇兰的权柄，织线崩断、七城坠地 | B |
+| 灾后"后魔法"的凡间 | 法术瘟疫（Spellplague，1385 DR）与第二次大分裂之后的诸国 | 织线断裂后的银冠诸国：法术变成需要登记的东西 | B |
+| 地下幽暗世界 | 幽暗地域（Underdark）：卓尔、灰矮人、地底侏儒与无光生态 | 坠城埋进地底后形成的「深渊地牢」，逐层向下 | B |
+| 疯法师的巨型地牢 | 深水城地下的 Undermountain，由 Halaster Blackcloak 不断扩建 | 深渊地牢由没有死去的疯法师奥兰一层层改造 | B |
+| 世外之地被"遗忘" | 设定名本身的来历：因通往外界的门扉，此地在别处成了传说 | 「遗忘之陆」：断裂之夜后门扉闭合，阿瑟兰从地图上消失 | B |
+| 各司其职的神系 | 密斯特拉（魔法）/ 兰森德尔（黎明）/ 莎尔（暗影）/ 摩拉丁（矮人）/ 柯瑞隆（精灵）/ 加尔·闪金（侏儒）/ 太摩拉（幸运） | 薇兰 / 艾尔登 / 娜芮 / 瓦尔格 / 伊瑟兰 / 班德尔 / 蒂拉 | B |
+| 看守终极宝物的守卫 | 地牢深处的 boss 与神器（各版不同） | 打不死、只能引开的「深渊守卫」，守着「星核之心」 | C（本项目自定） |
+
+**没有采用的**：诸神化为化身行走人间（动荡之年，Time of Troubles，1358 DR）——本项目的剧情只需要
+"灾变之后的凡间"，不需要神祇下凡，所以省掉了这一层。
+
+### 8.2 为什么不直接用原设定名词
+
+「被遗忘的国度」及其专有名词（费伦、耐色瑞尔、魔网、密斯特拉、幽暗地域、Undermountain……）
+是 Wizards of the Coast 的商标与受保护设定，而本仓库的既定立场是**内容里不出现他方专有名词**
+（见 `open-source-compliance.md` 第四节）。所以本节的用法是**描述性引用**（说明"学的是什么"），
+落地到 `dnd/data/lore.json` 时全部换成自创名，并由
+`tests/test_core.py::TestLore::test_story_text_has_no_wotc_proper_nouns` 自动守住这条线。
+
+### 8.3 主要链接
+
+- Forgotten Realms（维基总览）：https://en.wikipedia.org/wiki/Forgotten_Realms
+- 幽暗地域 Underdark：https://en.wikipedia.org/wiki/Underdark
+- 耐色瑞尔 Netheril：https://forgottenrealms.fandom.com/wiki/Netheril
+- 动荡之年 Time of Troubles：https://forgottenrealms.fandom.com/wiki/Time_of_Troubles
+- 幽暗深渊 Undermountain：https://forgottenrealms.fandom.com/wiki/Undermountain
+- 设定史（The Grand History of the Realms）：https://en.wikipedia.org/wiki/The_Grand_History_of_the_Realms
+- 中文条目（耐色瑞尔）：https://baike.baidu.com/item/耐色瑞尔/5215771
+- 中文条目（密斯特拉）：https://baike.baidu.com/item/密斯特拉/64482599
+- 创作源流（Ed Greenwood 与设定的由来）：https://www.wizardtower.com/blog/general/the-forgotten-realms-origins/
+
+> **可信度说明**：以上条目在本次调研中只拿到了**检索元数据（标题/链接/摘要）**——
+> `web_fetch` 对 wikipedia / fandom / baike 三个域全部超时或返回 403（见第六节），
+> 本机 `curl` 也连不出去。因此 8.1 表里"原设定里的样子"这一栏只能标 **B = 通行说法**：
+> 它们只用于**设计灵感**，不作为本项目的事实断言；真正落地的名词与情节全部是 **C = 本项目自定**。
+
+### 8.4 这份调研如何影响实现
+
+| 调研结论 | 对实现的约束 | 落地位置 |
+|---|---|---|
+| 世界观需要"可替换"而不是写死 | 游戏内序章进 JSON，代码只负责取页/排版；完整设定写文档 | `dnd/data/lore.json`、`dnd/lore.py`、`docs/world-setting.md` |
+| 背景要与"十层地牢 + 遗物 + 守卫"对上 | 坠城 = 十层竖井；守卫打不死 = 只能引开；遗物 = 星核之心 | `lore.json`、`level.py`（既有设计） |
+| 玩家要在**建角之后**读到它 | 建角返回后先过 `prologue_screen`（只放世界/入井/须知），再进地牢；随时按 `B` 重看 | `dnd/__main__.py`、`ui/screens.py`、`ui/tui.py` |
+| 无终端也要能看 | `--lore` 打印纯文本；`--no-prologue` 跳过 | `dnd/__main__.py`、`dnd/lore.py` |
+| 不许夹带他方专有名词 | 自动扫描故事正文 | `tests/test_core.py::TestLore` |
+

@@ -14,7 +14,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from dnd import dice, fov, replay, save  # noqa: E402
+from dnd import dice, fov, lore, replay, save  # noqa: E402
 
 # 测试产物写到临时目录，避免污染工作区的 saves/
 _TMP_DIR = pathlib.Path(tempfile.mkdtemp(prefix="dnd-tests-"))
@@ -349,6 +349,70 @@ class TestRaces(unittest.TestCase):
     def test_unknown_race_falls_back_to_human(self):
         game = Game(556, "Nobody", "warrior", race_id="dragon")
         self.assertEqual(game.player.race_id, "human")
+
+
+class TestLore(unittest.TestCase):
+    """背景故事层（L3）：内容数据要覆盖全部种族/职业，且不得夹带他方专有名词。"""
+
+    # 合规红线：故事文本里不许出现 WotC/TSR 的商标、设定名与角色名。
+    # （`_meta.note` 里的"不使用 WotC/TSR"属于合规叙述，所以只扫故事正文，不扫元数据。）
+    FORBIDDEN = (
+        "dungeons & dragons", "d&d", "tsr", "wotc", "wizards of the coast",
+        "forgotten realms", "被遗忘的国度", "faerûn", "faerun", "费伦", "toril", "托瑞尔",
+        "waterdeep", "深水城", "undermountain", "mystra", "密斯特拉", "netheril", "耐色瑞尔",
+        "menzoberranzan", "魔索布莱恩", "lolth", "罗丝", "elminster", "伊尔明斯特",
+        "drizzt", "崔斯特", "baldur", "博德之门", "neverwinter", "无冬城", "cormyr", "科米尔",
+        "vecna", "beholder", "眼魔", "mind flayer", "illithid", "夺心魔",
+    )
+
+    def test_meta_is_public_domain_and_invented(self):
+        meta = lore.load()["_meta"]
+        self.assertEqual(meta["license"], "CC0-1.0", "背景故事表要和其它数据表一样用 CC0")
+        self.assertEqual(meta["confidence"], "invented", "背景故事是 L3 再创作，不是史料")
+        self.assertIn("world-setting.md", meta.get("source", ""),
+                      "完整设定写在 docs/world-setting.md，序章只是它的节选")
+
+    def test_two_pages_world_then_descent(self):
+        """序章只讲两件事：这一切是怎么来的、玩家是怎么进地牢的。"""
+        book = lore.pages("Aria")
+        self.assertEqual([p["title"] for p in book], ["序章 · 世界", "序章 · 入井"])
+        for page in book:
+            self.assertTrue(page["title"] and page["lines"], f"空页：{page}")
+        joined = "\n".join(t for p in book for t, _ in p["lines"])
+        self.assertIn("阿瑟兰", joined, "世界页要交代世界名")
+        self.assertIn("深渊之门", joined, "入井页要写清楚玩家怎么进地牢")
+        self.assertIn("Aria", joined, "入井页要按名字称呼角色")
+
+    def test_briefing_lists_the_rules_players_must_know(self):
+        """除了世界与入井，只保留"下去之前必须知道"的四条。"""
+        joined = "\n".join(t for p in lore.pages("N") for t, _ in p["lines"])
+        for need in ("十层", "深渊遗物", "深渊守卫", "永久"):
+            self.assertIn(need, joined, f"下井前须知里应该有「{need}」")
+
+    def test_setting_details_live_in_the_docs_not_the_prologue(self):
+        """神系/种族/职业/遗物细设定已移出游戏文本 —— 它们只在世界观设定集里。"""
+        data = lore.load()
+        for moved_out in ("pantheon", "races", "classes", "relic"):
+            self.assertNotIn(moved_out, data,
+                             f"「{moved_out}」应该只写在 docs/world-setting.md 里")
+        titles = {p["title"] for p in lore.pages("N")}
+        self.assertEqual(titles, {"序章 · 世界", "序章 · 入井"}, "序章不该再长出设定页")
+
+    def test_empty_name_falls_back(self):
+        joined = "\n".join(t for p in lore.pages("") for t, _ in p["lines"])
+        self.assertIn("冒险者", joined, "空名字要退回默认称呼")
+
+    def test_story_text_has_no_wotc_proper_nouns(self):
+        text = lore.plain_text("Aria").lower()
+        hits = [word for word in self.FORBIDDEN if word in text]
+        self.assertEqual(hits, [], f"背景故事里出现了他方专有名词：{hits}")
+
+    def test_plain_text_is_plain(self):
+        text = lore.plain_text("Aria")
+        self.assertIn("── 序章", text)
+        self.assertTrue(text.endswith("\n"), "纯文本版以换行结尾（--lore 直接 print）")
+        for bad in ("\x1b", "\x00", "\r"):
+            self.assertNotIn(bad, text, "纯文本版不含终端控制字符")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 流程：
     开始页（start_screen）
-      ├─ 新的冒险 → 建角（creation_screen）→ 进游戏
+      ├─ 新的冒险 → 建角（creation_screen）→ 序章（prologue_screen）→ 进游戏
       ├─ 读取存档 → 存档管理（save_manager_screen）→ 进游戏
       ├─ 名人堂   → 名册浮层（lobby_screen）
       └─ 退出游戏
@@ -25,7 +25,8 @@ from .. import save as save_mod
 from ..entities import BASE_FOV_RADIUS as BASE_FOV
 from ..level import MAX_DEPTH
 from . import theme
-from .widgets import _width, bar, center, clip, fill, frame, hint_bar, pad_to, put, rule
+from .widgets import (_width, bar, center, clip, fill, frame, hint_bar, pad_to, put,
+                      rule, wrap)
 
 # 与 tui.py 保持一致的最小窗口与中文属性名（两边都不 import 对方，避免循环依赖）
 MIN_W, MIN_H = 62, 18
@@ -64,7 +65,7 @@ def _clip_key(text: str, limit: int) -> str:
     return text.rstrip()
 
 
-def _hint_cells(pairs, max_units: int = 6):
+def _hint_cells(pairs, max_units: int = 8):
     """挑几个能在窄终端里放下的提示（超宽的说明先缩短，再整条丢弃）。"""
     cells = []
     for key, label in pairs:
@@ -728,6 +729,107 @@ def creation_screen(stdscr, no_color: bool = False, *, initial_name: str = "",
             raise SystemExit(0)
         elif 0 <= key < 256 and chr(key).isprintable() and len(name) < 14:
             name += chr(key)
+
+
+# ---------------------------------------------------------------- 背景故事
+PROLOGUE_TITLE = "序章 · 被遗忘的深渊"
+
+
+def _flowed_lines(page: dict, width: int) -> list[tuple[str, str]]:
+    """把一页的段落折成屏幕行；空行原样保留（段落之间靠它留白）。"""
+    out: list[tuple[str, str]] = []
+    for text, color in page["lines"]:
+        if not text:
+            out.append(("", color))
+            continue
+        for piece in wrap(text, max(8, width)):
+            out.append((piece, color))
+    return out
+
+
+def prologue_screen(stdscr, name: str, no_color: bool = False) -> None:
+    """建角之后展示序章：**世界**（这一切是怎么来的）→ **入井**（你怎么进地牢、要知道什么）。
+
+    ↑↓ 滚动、←→ / PgUp/PgDn 翻页、回车/空格 进入地牢、Esc 跳过。
+    这一屏是"读"不是"选"：没有反白光标，任何一键都能走完全程，而且**必定回到游戏**
+    —— 角色已经建好了，Esc 在这里只能跳过故事，不能取消这一局。
+    """
+    from .. import lore
+
+    theme.init_colors(no_color)
+    stdscr.keypad(True)
+    curses.curs_set(0)
+    book = lore.pages(name)
+    page, scroll = 0, 0
+    while True:
+        stdscr.erase()
+        h, w = stdscr.getmaxyx()
+        if w < MIN_W or h < MIN_H:
+            _too_small(stdscr, "序章", no_color, extra="按任意键进入地牢")
+            if _drain(stdscr) == curses.KEY_RESIZE:
+                continue
+            return
+
+        box_w = max(40, min(96, w - 4))
+        box_h = max(6, h - 2)
+        top, left = 1, max(0, (w - box_w) // 2)
+        inner_x, inner_w = left + 3, box_w - 6
+        view = box_h - 2
+
+        lines = _flowed_lines(book[page], inner_w)
+        max_scroll = max(0, len(lines) - view)
+        scroll = min(scroll, max_scroll)
+
+        for i in range(view):
+            idx = scroll + i
+            if idx >= len(lines):
+                break
+            text, color = lines[idx]
+            if text:
+                put(stdscr, top + 1 + i, inner_x, clip(text, inner_w),
+                    theme.attr(color, no_color))
+        # 还有内容在框外时，在右边框内侧点一个箭头（不压正文）
+        if scroll > 0:
+            put(stdscr, top + 1, left + box_w - 3, theme.G["up"], theme.attr("dim", no_color))
+        if scroll < max_scroll:
+            put(stdscr, top + box_h - 2, left + box_w - 3, theme.G["down"],
+                theme.attr("dim", no_color))
+
+        frame(stdscr, top, left, box_h, box_w,
+              f"深渊地牢 · {book[page]['title']}", theme.attr("frame", no_color),
+              foot=f"{page + 1}/{len(book)} 页", foot_attr=theme.attr("dim", no_color))
+        hint_bar(stdscr, h - 1, w, _hint_cells([
+            ("↑↓", "滚动"), ("←→", "翻页"), ("回车", "进入地牢"), ("Esc", "跳过"),
+        ]), attr_fn=lambda n, b=False: theme.attr(n, no_color, b))
+        stdscr.noutrefresh()
+        curses.doupdate()
+
+        key = _drain(stdscr)
+        if key == curses.KEY_RESIZE:
+            continue
+        if key == curses.KEY_UP:
+            scroll = max(0, scroll - 1)
+        elif key == curses.KEY_DOWN:
+            scroll = min(max_scroll, scroll + 1)
+        elif key in (curses.KEY_LEFT, curses.KEY_PPAGE):
+            if scroll > 0:
+                scroll = max(0, scroll - view)
+            elif page > 0:                       # 回到上一页并停在它的末尾
+                page, scroll = page - 1, 1 << 30
+        elif key in (curses.KEY_RIGHT, curses.KEY_NPAGE):
+            if scroll < max_scroll:
+                scroll = min(max_scroll, scroll + view)
+            elif page < len(book) - 1:
+                page, scroll = page + 1, 0
+        elif key in ENTER_KEYS or (0 <= key < 256 and chr(key) == " "):
+            if scroll < max_scroll:              # 先读完整页，再翻页，读完才进场
+                scroll = min(max_scroll, scroll + view)
+            elif page < len(book) - 1:
+                page, scroll = page + 1, 0
+            else:
+                return
+        elif key == 27:
+            return
 
 
 def creation_tips():

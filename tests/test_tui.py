@@ -377,6 +377,112 @@ class TestCreationScreen(unittest.TestCase):
             self.assertIn("62x18", scr.text(), f"{w}x{h} 应提示需要多大")
 
 
+class TestPrologueScreen(unittest.TestCase):
+    """建角之后的序章：必定展示、能翻页读完、且必定能回到游戏。"""
+
+    NAME = "Aria"
+
+    def _run(self, h, w, keys):
+        scr = FakeScreen(h, w, keys=keys)
+        screens_mod.prologue_screen(scr, self.NAME, True)
+        return scr
+
+    def test_shows_world_background_and_key_hints(self):
+        scr = self._run(32, 100, [27])
+        text = scr.text()
+        self.assertIn("序章", text, "标题要写清楚这是背景故事")
+        self.assertIn("阿瑟兰", text, "第一页要交代世界")
+        self.assertIn("深渊地牢", text, "标题栏保持和游戏一致的称谓")
+        for hint in ("滚动", "翻页", "进入地牢", "跳过"):
+            self.assertIn(hint, text, f"提示栏应告诉玩家「{hint}」")
+        self.assertIn("1/2 页", text, "要显示读到第几页")
+
+    def test_initialises_colors_and_keypad(self):
+        """建角之后紧接着就是它，同样跑在 Tui 之前：配色与 keypad 都得自己开。"""
+        calls = []
+        original = screens_mod.theme.init_colors
+        screens_mod.theme.init_colors = lambda no_color=False: calls.append(no_color)
+        try:
+            scr = self._run(32, 100, [27])
+        finally:
+            screens_mod.theme.init_colors = original
+        self.assertTrue(calls, "序章要先初始化配色")
+        self.assertIn(True, scr.keypad_calls, "序章要自己开 keypad，否则方向键会变成 ESC")
+
+    def test_arrow_key_reaches_the_descent_page(self):
+        """宽屏下两页都放得下：→ 翻一次就是「入井」页（讲怎么进地牢 + 下井须知）。"""
+        scr = self._run(40, 110, [curses.KEY_RIGHT, 27])
+        text = scr.text()
+        self.assertIn("2/2 页", text, "翻页后应停在最后一页")
+        self.assertIn("深渊之门", text, "入井页要讲清楚玩家怎么进地牢")
+        self.assertIn(self.NAME, text, "入井页要按名字称呼角色")
+        self.assertIn("十层", text, "入井页要留下井前须知")
+
+    def test_enter_walks_the_whole_story_and_then_returns(self):
+        """回车一路读到底必须**回到游戏**（不是卡住，也不是退出）。"""
+        scr = FakeScreen(30, 100, keys=[10] * 8)
+        self.assertIsNone(screens_mod.prologue_screen(scr, self.NAME, True))
+
+    def test_escape_skips_without_cancelling_the_run(self):
+        scr = FakeScreen(30, 100, keys=[27])
+        self.assertIsNone(screens_mod.prologue_screen(scr, self.NAME, True))
+
+    def test_borders_stay_intact_at_every_supported_size(self):
+        for h, w in ((18, 62), (20, 80), (24, 100), (36, 120)):
+            with self.subTest(size=(h, w)):
+                scr = self._run(h, w, [27])
+                text = scr.text()
+                self.assertIn("序章", text, f"{w}x{h}：看不到序章标题")
+                # 上下边框与左右竖线都要完整：正文不能把框顶破
+                top = row_of(scr, "序章")
+                bottom = max(y for y in range(h) if theme.G["bl"] in scr.row(y))
+                self.assertGreater(bottom, top, f"{w}x{h}：找不到完整边框")
+                left = scr.row(top).index(theme.G["tl"])
+                right = scr.row(top).rindex(theme.G["tr"])
+                self.assertGreater(right - left, 20, f"{w}x{h}：面板太窄")
+                for y in range(top + 1, bottom):
+                    row = scr.row(y)
+                    self.assertEqual(row[left], theme.G["v"], f"{w}x{h}：第 {y} 行左边框被冲掉")
+                    self.assertEqual(row[right], theme.G["v"], f"{w}x{h}：第 {y} 行右边框被冲掉")
+                self.assertIn("页", scr.row(bottom), f"{w}x{h}：页脚应写在下边框上")
+
+    def test_ascii_mode_swaps_box_drawing_and_arrows(self):
+        """--ascii 是给"把框线/箭头当两格宽"的终端用的：序章自己画的部分也要跟着换。"""
+        with theme.glyph_override("ascii"):
+            scr = FakeScreen(18, 62, keys=[27])
+            screens_mod.prologue_screen(scr, self.NAME, True)
+            self.assertEqual(theme.G["tl"], "+")
+            self.assertEqual(theme.G["down"], "v")
+        text = "\n".join(scr.row(y) for y in range(scr.h - 1))
+        for unicode_only in ("─", "│", "┌", "┐", "└", "┘", "↑", "↓"):
+            self.assertNotIn(unicode_only, text, f"ASCII 模式仍画出了 {unicode_only}")
+        self.assertIn("+", text, "ASCII 模式的边框应是 +")
+        self.assertIn("v", text, "内容放不下时应有向下滚动提示")
+
+    def test_too_small_returns_instead_of_crashing_or_quitting(self):
+        """窗口太小时角色已经建好了：给提示并按任意键进场，不能抛 SystemExit。"""
+        scr = FakeScreen(12, 50, keys=[10])
+        self.assertIsNone(screens_mod.prologue_screen(scr, self.NAME, True))
+        self.assertIn("终端窗口太小", scr.text())
+
+
+class TestBackgroundKey(unittest.TestCase):
+    """游戏内按 B 重看序章：和建角后的序章共用同一个界面。"""
+
+    def test_b_opens_the_prologue(self):
+        game = Game(21, "Aria", "wizard", race_id="elf")
+        scr = FakeScreen(30, 100, keys=[27])
+        tui_mod.Tui(scr, game, no_color=True).background_screen()
+        text = scr.text()
+        self.assertIn("序章", text)
+        self.assertIn("阿瑟兰", text, "B 打开的应该是那份世界背景，而不是空屏")
+
+    def test_hint_bar_advertises_the_background_key(self):
+        game = Game(21, "Aria", "warrior")
+        scr = render(game, 36, 120)
+        self.assertIn("背景", scr.row(35), "按键提示栏要告诉玩家 B 能看背景")
+
+
 class TestStartScreen(unittest.TestCase):
     """开始页：启动后先看到它，↑↓ 选菜单，回车确认。"""
 
@@ -866,6 +972,32 @@ class TestWidgets(unittest.TestCase):
         self.assertTrue(border.startswith(theme.G["bl"]) and border.endswith(theme.G["br"]))
         self.assertEqual(scr.row(6)[:7], theme.G["bl"] + theme.G["h"] * 6)
         self.assertEqual(scr.row(5)[:28].count(theme.G["br"]), 0, "内容行不该有右边框残留")
+
+    def test_wrap_breaks_after_punctuation_and_never_exceeds_width(self):
+        text = "你好，世界。再见。"
+        rows = widgets.wrap(text, 6)
+        self.assertEqual("".join(rows), text, "折行不能丢字")
+        self.assertTrue(all(_width(r) <= 6 for r in rows), rows)
+        self.assertEqual(rows[0], "你好，", "中文没有词间空格，应断在标点之后")
+
+    def test_wrap_hard_breaks_text_without_any_break_point(self):
+        rows = widgets.wrap("A" * 25, 10)
+        self.assertEqual([len(r) for r in rows], [10, 10, 5])
+        self.assertEqual(widgets.wrap("", 10), [])
+
+    def test_wrap_uses_display_width_for_cjk(self):
+        rows = widgets.wrap("银冠诸国的孩子", 10)
+        self.assertTrue(all(_width(r) <= 10 for r in rows), rows)
+        self.assertGreater(len(rows), 1, "20 格的文本装进 10 格应至少折成两行")
+
+    def test_wrap_never_starts_a_line_with_closing_punctuation(self):
+        """回归：断在「」之后会让下一行以「：」开头，读起来像排版坏了。"""
+        text = ("被那个没有在断裂之夜死去的疯法师奥兰一层层改造成陷阱与魔物盘踞的竖井。"
+                "人们叫它「深渊地牢」：整整十层，越深越靠近当年帝国的核心。")
+        for width in range(6, 32):
+            for row in widgets.wrap(text, width):
+                self.assertNotIn(row[0], "，。、；：！？）》」』】",
+                                 f"宽 {width}：这一行以收尾标点开头：{row!r}")
 
     def test_put_never_writes_past_the_right_edge(self):
         scr = FakeScreen(4, 10)

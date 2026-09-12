@@ -2,18 +2,18 @@
 
 默认流程（不带参数时）：
 
-    开始页 ──新的冒险──→ 建角界面 ──→ 地牢 ──Esc 菜单──→ 存档管理
+    开始页 ──新的冒险──→ 建角界面 ──→ 序章（背景故事）──→ 地牢 ──Esc 菜单──→ 存档管理
       │                                ↑                    │
       ├──读取存档──→ 存档管理 ─────────┘←────读取────────────┘
       ├──名人堂──→ 名册浮层
       └──退出游戏
 
-开始页、建角、游戏、读档共用**同一个 curses 会话**（见 `session`）：每段各自
+开始页、建角、序章、游戏、读档共用**同一个 curses 会话**（见 `session`）：每段各自
 `curses.wrapper()` 会让终端反复复位，观感上就是进出一次闪一下。
 
 命令行参数仍然是"老玩家快捷键"（也是 tools/pty_smoke.py 依赖的路径）：
---name/--class/--race 齐备 → 直接开局；--load/--latest → 直接读档；
---seed 仍然会先过开始页（种子在真正开局时才用得上）。
+--name/--class/--race 齐备 → 直接开局（仍会过一次序章，--no-prologue 可跳过）；
+--load/--latest → 直接读档；--seed 仍然会先过开始页（种子在真正开局时才用得上）。
 """
 
 from __future__ import annotations
@@ -41,6 +41,10 @@ def parse_args(argv=None):
     ap.add_argument("--menu", action="store_true",
                     help="强制先进入开始页（不带任何参数时的默认行为，留作显式开关）")
     ap.add_argument("--modern", action="store_true", help="现代模式：可免死一次")
+    ap.add_argument("--no-prologue", action="store_true",
+                    help="跳过建角后的背景故事，直接进入地牢")
+    ap.add_argument("--lore", action="store_true",
+                    help="打印背景故事（世界/诸神/血脉/道路/使命），不启动界面")
     ap.add_argument("--debug", action="store_true", help="开启调试键（x 全图 / t 传送）")
     ap.add_argument("--no-color", action="store_true", help="关闭颜色")
     ap.add_argument("--ascii", action="store_true",
@@ -145,15 +149,24 @@ def run_menu(curses, screens, tui_cls, args) -> int:
         return menu_loop(curses, screens, tui_cls, args, stdscr)
 
 
+def show_prologue(screens, args, stdscr, name: str) -> None:
+    """建角之后的序章（--no-prologue 跳过）：角色已经建好，这一屏只负责"读"。"""
+    if args.no_prologue:
+        return
+    screens.prologue_screen(stdscr, name, args.no_color)
+
+
 def create_game(screens, args, stdscr):
     """进建角界面组一局新游戏。
 
     命令行给过的 --name/--class/--race 会预填进去（用户写过的参数不该被丢掉）；
     建角里按 Esc 放弃这一局时抛 SystemExit，由调用方决定"回开始页还是退出程序"。
+    名字定下来之后先过一次序章，再进地牢。
     """
     name, class_id, race_id = screens.creation_screen(
         stdscr, args.no_color, initial_name=args.name or "",
         initial_class=args.class_id, initial_race=args.race_id)
+    show_prologue(screens, args, stdscr, name)
     return make_game(args, name, class_id, race_id)
 
 
@@ -189,7 +202,8 @@ def exit_after(curses, screens, tui_cls, args, stdscr, game) -> int:
 
 def play(curses, tui_cls, args, stdscr, game) -> str:
     """在既有会话里玩一局。返回 'quit'（结束程序）或 'menu'（回开始页）。"""
-    tui = tui_cls(stdscr, game, debug=args.debug, no_color=args.no_color)
+    tui = tui_cls(stdscr, game, debug=args.debug, no_color=args.no_color,
+                  no_prologue=args.no_prologue)
     try:
         tui.run()
     except SystemExit:
@@ -221,6 +235,11 @@ def main(argv=None) -> int:
             print(f"{entry['name']:<12} {entry.get('race', 'Human'):<8} {entry['class']:<8} "
                   f"Lv{entry['level']:<3} depth {entry['depth']:<3} "
                   f"{entry['result']:<5} {entry['gold']}g {entry['turns']}t {entry['date']}")
+        return 0
+
+    if args.lore:                                   # 纯文本序章：无终端也能看
+        from . import lore as lore_mod
+        print(lore_mod.plain_text(args.name or "冒险者"), end="")
         return 0
 
     if args.headless_demo:
@@ -259,6 +278,7 @@ def main(argv=None) -> int:
 
     if not args.menu and args.name and args.class_id and args.race_id:   # 捷径：参数齐备，直接开局
         with session(curses) as stdscr:
+            show_prologue(screens, args, stdscr, args.name)
             return exit_after(curses, screens, Tui, args, stdscr,
                               make_game(args, args.name, args.class_id, args.race_id))
 

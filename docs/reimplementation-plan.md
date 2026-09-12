@@ -31,7 +31,7 @@
 | 视觉风格 | 黑底 + 琥珀/等离子橙辉光、记忆雾、光照层次；Unicode 框线 + ASCII 兜底 | PLATO 单色屏观感；中文终端常把框线当两格宽 |
 | 内核 | 纯逻辑 + 可序列化状态 + 命令日志（`Game.commands`） | 可回放、可测试、可存档续玩 |
 | 随机 | 自研 seeded PRNG（xoshiro256\*\* + splitmix64），内核内**禁用 `random` / `time`** | 确定性；`time` 只在存档/名册盖时间戳时用 |
-| 测试 | `unittest`（标准库），98 项；另有 tmux 冒烟 37 项 | 零依赖；见第 8 节 |
+| 测试 | `unittest`（标准库），123 项；另有 tmux 冒烟 44 项 | 零依赖；见第 8 节 |
 | 存档 | 本地 JSON（角色 + 地牢 + RNG 状态）+ `_meta` 摘要、原子写；名人堂 `saves/roster.json` | 模拟原版"PLATO 用户记录"式持久化角色 |
 | 开发辅助 | `tools/preview.py` 把界面渲染成 PNG，`tools/sim.py` 跑批，`tools/pty_smoke.py` 冒烟 | 终端的"看一眼"与自动化验证；Pillow 是**唯一可选依赖**，游戏本体不需要 |
 
@@ -42,12 +42,13 @@ DND/
 ├─ play.sh               跨平台启动脚本（POSIX sh：Linux / macOS / WSL2；自检 + 启动，含 --check）
 ├─ pyproject.toml        包元数据（MIT、requires-python ≥ 3.10、可选依赖 Pillow、console script 入口）
 ├─ LICENSE               代码协议（MIT）｜ dnd/data/LICENSE-CC0.txt 数据协议（CC0-1.0）
-├─ dnd/                  游戏包（python3 -m dnd）—— 3827 行 Python（其中 ui/ 1984 行）
+├─ dnd/                  游戏包（python3 -m dnd）—— 4093 行 Python（其中 ui/ 2161 行）
 │  ├─ __main__.py        命令行入口与「开始页 ↔ 建角 ↔ 地牢」主循环（对 UI 一律延迟导入）
 │  ├─ rng.py             确定性 PRNG（xoshiro256**，状态可 JSON 序列化）
 │  ├─ dice.py            掷骰表达式（'2d6+1' / 'd8' / '3'）+ 属性调整值
 │  ├─ content.py         JSON 数据表加载与索引（按深度加权筛选怪物/物品、经验/命中成长查询）
-│  ├─ data/*.json        职业 4 / 种族 4 / 怪物 12 / 物品 18 / 法术 5（均带 _meta 可信度与 CC0 声明）
+│  ├─ lore.py            序章装配（lore.json → 2 页；不 import curses，`--lore` 无终端可用）
+│  ├─ data/*.json        职业 4 / 种族 4 / 怪物 12 / 物品 18 / 法术 5 / 背景故事 1（均带 _meta 可信度与 CC0 声明）
 │  ├─ level.py           地图生成（48×26 房间+走廊、门、楼梯、分层放置、BFS 连通性校验）
 │  ├─ fov.py             视野（递归阴影投射，8 个八分圆）
 │  ├─ entities.py        玩家 / 怪物 / 物品、建角、自动装备、装备与背包的关联修复
@@ -57,11 +58,11 @@ DND/
 │  ├─ ui/theme.py        配色与字形（RGB 单一事实来源 + 三级降级 + Unicode/ASCII 字形集 + 光照层次）
 │  ├─ ui/widgets.py      绘制辅助（框线/分隔线/进度条/按键提示；按**显示宽度**裁剪中文）
 │  ├─ ui/describe.py     物品/法术说明（effect id → 玩家看得懂的一句话）
-│  ├─ ui/screens.py      开始页 / 存档管理 / 建角（↑↓ 驱动的开局三屏，`panel_rect` 排版单一来源）
+│  ├─ ui/screens.py      开始页 / 存档管理 / 建角 / 序章（↑↓ 驱动的开局四屏，`panel_rect` 排版单一来源）
 │  └─ ui/tui.py          curses 主界面与浮层（游戏内：地图、侧栏、日志、暂停菜单、结算）
-├─ tests/                1402 行：test_core.py(30) / test_tui.py(62) / test_cli.py(6)
-├─ tools/                832 行：sim.py（机器人跑批）pty_smoke.py（伪终端冒烟）preview.py（渲染 PNG）
-├─ docs/                 research-dossier.md（史料）reimplementation-plan.md（本文）how-to-play.md open-source-compliance.md
+├─ tests/                1641 行：test_core.py(37) / test_tui.py(76) / test_cli.py(10)
+├─ tools/                872 行：sim.py（机器人跑批）pty_smoke.py（伪终端冒烟）preview.py（渲染 PNG）
+├─ docs/                 research-dossier.md（史料）world-setting.md（设定集）reimplementation-plan.md（本文）how-to-play.md open-source-compliance.md
 ├─ saves/                roster.json 与玩家存档（`saves/*.json` 不入库，只保留 .gitkeep）
 └─ out/                  机器人跑批与预览输出（gitignore）
 ```
@@ -87,14 +88,17 @@ rng ← dice ← entities ← level ← game ← save
 
 - **L1 忠实层**：有据可查的骨架 —— 单屏字符地牢、俯视探索、逐层下潜、掷骰战斗、角色持久化、永久死亡、宝物驱动成长。
 - **L2 现代化层**：键位与操作、帮助页、视野与记忆雾、怪物仇恨半径、生命自然恢复、上升式 AC、存档/名册、界面降级（ASCII/无颜色）。
-- **L3 自由发挥层**：具体职业/种族/法术/怪物/数值/关卡布局/胜负条件（原版数据不可得，由本项目定义）。
+- **L3 自由发挥层**：具体职业/种族/法术/怪物/数值/关卡布局/胜负条件/世界观与背景故事（原版数据不可得，由本项目定义）。
 
 **数据出处登记**：每个数据文件附
 `_meta: {"confidence": "documented|inferred|invented", "source": "<url|note>", "license": "CC0-1.0"}`；
-界面提供「考据模式」开关（`P`）：开启后在侧栏显示分级说明。当前五张表全部为 `invented`（原版数值不可考），
-但**整体可在不改代码的前提下替换** —— `content.py` 在运行期读 JSON，没有任何硬编码内容。
+界面提供「考据模式」开关（`P`）：开启后在侧栏显示分级说明。当前六张表全部为 `invented`（原版数值不可考，
+背景故事层更是纯粹的再创作），但**整体可在不改代码的前提下替换** —— `content.py` / `lore.py` 在运行期读 JSON，
+没有任何硬编码内容。
 
-**合规**：不使用 TSR/WotC 的商标与专有名词（不出现 D&D 品牌标识）；怪物/物品使用公有领域的通用奇幻词汇或自创名。
+**合规**：不使用 TSR/WotC 的商标与专有名词（不出现 D&D 品牌标识）；怪物/物品使用公有领域的通用奇幻词汇或自创名；
+背景故事只借用"失落浮空帝国 / 维系魔法的源流 / 地下幽暗世界 / 疯法师地牢"这类**公共母题**，名词全部自造
+（母题 → 改造对照见 `research-dossier.md` 第八节），并由 `tests/test_core.py::TestLore` 自动扫描守住。
 
 ## 4. 复刻要素 → 实现方式（保真度矩阵）
 
@@ -112,6 +116,7 @@ rng ← dice ← entities ← level ← game ← save
 | 角色持久化（B+） | JSON 存档（含 RNG 状态）+ `_meta` 摘要 + `--latest` 续玩 + 图形化存档管理 | L1/L2 | `save.py`、`ui/screens.py` |
 | 目标/通关（C） | 第 10 层「深渊守卫」+「深渊遗物」：**取得遗物即胜利，不必杀死守卫**（守卫紧邻遗物但不压在其上） | L3 | `level.py`、`game.py` |
 | 玩家社群/排行榜（B+） | 本地名人堂名册（开始页菜单 / `R` 键 / `--roster`）；分享串未做 | L2 | `save.py`、`ui/screens.py` |
+| 世界观与背景故事（C） | 自创世界「遗忘之陆」：建角后先读 2 页序章（世界 → 入井，含下井须知），游戏内 `B` 重看，`--lore` 打印纯文本；细设定放文档 | L3 | `data/lore.json`、`lore.py`、`ui/screens.py`、`docs/world-setting.md` |
 
 ## 5. 启动路径与主循环设计
 
@@ -139,18 +144,19 @@ rng ← dice ← entities ← level ← game ← save
 **主循环**（`dnd/__main__.py`）
 
 ```
-开始页 ──新的冒险──→ 建角 ──→ 地牢 ──Esc 菜单──→ 存档管理
-  │                              ↑                  │
-  ├──读取存档──→ 存档管理 ────────┘←────读取─────────┘
+开始页 ──新的冒险──→ 建角 ──→ 序章 ──→ 地牢 ──Esc 菜单──→ 存档管理
+  │                                    ↑                  │
+  ├──读取存档──→ 存档管理 ──────────────┘←────读取─────────┘
   ├──名人堂──→ 名册浮层
   └──退出游戏
 ```
 
-- 开始页、建角、存档管理、游戏内界面共用**同一个 curses 会话**（自写 `session` 类而不是 `curses.wrapper`）：
+- 开始页、建角、序章、存档管理、游戏内界面共用**同一个 curses 会话**（自写 `session` 类而不是 `curses.wrapper`）：
   每段各自 wrapper 会反复 `initscr/endwin`，观感上就是进出一次闪一下。
-- 命令行捷径：`--load`/`--latest` 直接续玩；`--name/--class/--race` 三者齐备直接开局；
-  只给一部分则跳过开始页直接进建角并**预填**已给的项（没给的项绝不静默填默认值 —— 那正是"种族被钉成人类"的旧 bug）；
-  `--seed` 单独出现仍会先过开始页（种子在真正开局时才用得上）；`--menu` 强制先回开始页。
+- 命令行捷径：`--load`/`--latest` 直接续玩；`--name/--class/--race` 三者齐备直接开局（**仍过一次序章**，
+  `--no-prologue` 可跳过）；只给一部分则跳过开始页直接进建角并**预填**已给的项
+  （没给的项绝不静默填默认值 —— 那正是"种族被钉成人类"的旧 bug）；
+  `--seed` 单独出现仍会先过开始页（种子在真正开局时才用得上）；`--menu` 强制先回开始页；`--lore` 只打印背景故事。
 
 ## 6. 内核设计
 
@@ -212,20 +218,21 @@ rng ← dice ← entities ← level ← game ← save
 
 ```bash
 ./play.sh --check                             # 环境自检（平台/Python/curses/终端/编码/尺寸），排障第一步
-python3 -m unittest discover -s tests -v      # 98 项：内核 30 / TUI 62 / CLI 6
-python3 tools/pty_smoke.py                    # 37 项：tmux 真实伪终端里的 TUI 冒烟
+python3 -m unittest discover -s tests -v      # 123 项：内核 37 / TUI 76 / CLI 10
+python3 tools/pty_smoke.py                    # 44 项：tmux 真实伪终端里的 TUI 冒烟
+python3 -m dnd --lore                          # 背景故事纯文本版（无终端也能跑）
 python3 -m dnd --headless-demo 300 --seed 5   # 无终端环境自检
 python3 tools/sim.py --runs 40 --class warrior  # 机器人跑批（可加 --json 落盘）
-python3 tools/preview.py                      # 17 个界面场景渲染为 PNG（需 Pillow，仅开发用）
+python3 tools/preview.py                      # 18 个界面场景渲染为 PNG（需 Pillow，仅开发用）
 ```
 
 **测试分工**
 
 | 文件 | 覆盖 |
 |---|---|
-| `tests/test_core.py`（30） | RNG 确定性与状态往返、掷骰解析与范围、地图连通性与确定性、第 10 层守卫/遗物布局、FOV、建角与种族数值、存档往返哈希不变、`_meta` 与旧档/坏档容错、回放一致性、战斗与经验、楼梯落点不叠怪、调试命令留在回放日志、畸形命令容错、装备关联 |
-| `tests/test_tui.py`（62） | 假 curses 屏幕：开始页光标/反白/面板不抖动、存档管理列表与详情与删除确认、暂停菜单、建角两栏焦点、面板几何公式回归、中文按显示宽度裁剪、框架页脚不压内容、Unicode/ASCII 切换、describe 文案 |
-| `tests/test_cli.py`（6） | `--list-saves` 空/非空、参数缺项仍进建角、参数齐备跳过建角、`--load` 在真实伪终端里进入游戏、读不存在的存档报错 |
+| `tests/test_core.py`（37） | RNG 确定性与状态往返、掷骰解析与范围、地图连通性与确定性、第 10 层守卫/遗物布局、FOV、建角与种族数值、存档往返哈希不变、`_meta` 与旧档/坏档容错、回放一致性、战斗与经验、楼梯落点不叠怪、调试命令留在回放日志、畸形命令容错、装备关联、序章文本（两页结构 / 下井须知 / 细设定只留文档 / 无他方专有名词） |
+| `tests/test_tui.py`（76） | 假 curses 屏幕：开始页光标/反白/面板不抖动、存档管理列表与详情与删除确认、暂停菜单、建角两栏焦点、序章翻页/边框完整/页脚、`B` 重看背景、面板几何公式回归、中文按显示宽度裁剪与折行、框架页脚不压内容、Unicode/ASCII 切换、describe 文案 |
+| `tests/test_cli.py`（10） | `--list-saves` 空/非空、参数缺项仍进建角、参数齐备跳过建角、建角后展示序章、`--no-prologue` 直进地牢、`--lore` 纯文本输出、`--load` 在真实伪终端里进入游戏、读不存在的存档报错 |
 
 **质量原则**
 
@@ -242,8 +249,8 @@ python3 tools/preview.py                      # 17 个界面场景渲染为 PNG�
 | **M1 骨架可跑** | ✅ | `rng.py` `dice.py` `level.py` `fov.py` `ui/tui.py`；验收：`--headless-demo 300 --seed 5` 无异常、同种子地图可复现、生成器连通性校验生效 |
 | **M2 角色与战斗闭环** | ✅ | 建角（4 职业 × 4 种族）、属性、d20 战斗、暴击、经验升级、物品装备、药水卷轴、法术、死亡与结算 |
 | **M3 内容与进度** | 🟡 | 已完成：10 层曲线、12 怪物、18 物品、5 法术、第 10 层守卫+遗物、胜利结算。待做：商店/祭坛（金币消耗）、带遗物回程、洞穴型/主题化层、陷阱与门锁 |
-| **M4 观感与操作** | ✅ | 琥珀辉光配色、标题栏/体征栏/侧栏/日志/浮层/结局、帮助页、ASCII 与无颜色降级、中文按显示宽度裁剪、**开始页 + 存档管理 + Esc 暂停菜单**（全部 ↑↓ + 回车） |
-| **M5 平衡与自动化** | 🟡 | 已完成：`tools/sim.py` 贪心机器人跑批、四职业基线数据、`tools/preview.py` 17 场景。待做：各职业平衡（法师偏弱）、关键指标回归基线固化进测试 |
+| **M4 观感与操作** | ✅ | 琥珀辉光配色、标题栏/体征栏/侧栏/日志/浮层/结局、帮助页、ASCII 与无颜色降级、中文按显示宽度裁剪、**开始页 + 存档管理 + Esc 暂停菜单**（全部 ↑↓ + 回车）、**建角后的序章 + 游戏内 `B` 重看背景** |
+| **M5 平衡与自动化** | 🟡 | 已完成：`tools/sim.py` 贪心机器人跑批、四职业基线数据、`tools/preview.py` 18 场景。待做：各职业平衡（法师偏弱）、关键指标回归基线固化进测试 |
 | **M6 存档/名册/调试** | 🟡 | 已完成：JSON 存档、原子写、`_meta` 摘要、存档索引/删除、图形化读档删档、名人堂、确定性回放、调试键。待做：多角色槽位、存档导入导出 |
 | **M7 抛光交付** | 🟡 | 已完成：README、上手指南、四份 docs、启动脚本、`play.sh --check`、文档全面重写。待做：分享串、变更记录、CI |
 
@@ -266,7 +273,7 @@ python3 tools/preview.py                      # 17 个界面场景渲染为 PNG�
 | 终局硬拼劝退 | 玩家觉得不可能通关 | 守卫必生成但**遗物可抢走即胜**；README 明写"引开它再冲刺" |
 | 商标与版权 | 法律风险 | 不用 D&D 品牌与专有名词；仅用公有领域通用词（见 `open-source-compliance.md`） |
 | 启动环境差异 | "clone 下来跑不起来"是开源项目第一杀手 | `play.sh` 逐项前置校验；原生 Windows 直接给 WSL2 指引；`--check` 一键出报告 |
-| 界面回归 | 中文越界/面板错位这类问题肉眼难查 | 假屏幕布局测试 + 17 场景 PNG 预览 + "踩坑即留测试"的约定 |
+| 界面回归 | 中文越界/面板错位这类问题肉眼难查 | 假屏幕布局测试 + 18 场景 PNG 预览 + "踩坑即留测试"的约定 |
 
 ## 11. 决策留痕
 

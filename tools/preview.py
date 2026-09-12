@@ -303,6 +303,14 @@ def build_scenes():
         return scr
     scenes["creation"] = ("建角界面", creation)
 
+    def prologue():
+        """建角之后的序章：翻到「入井」页，展示"你怎么进地牢 + 下井前须知"。"""
+        from dnd.ui.screens import prologue_screen
+        scr = RecordScreen(32, 104, keys=[curses.KEY_RIGHT, 27])
+        prologue_screen(scr, "Aria", no_color=False)
+        return scr
+    scenes["prologue"] = ("序章 · 入井（建角后的背景故事）", prologue)
+
     def start_menu():
         """开始页：玩家看到的第一屏（↑↓ 选菜单，回车确认）。"""
         from dnd.ui.screens import start_screen

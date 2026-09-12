@@ -2,7 +2,8 @@
 """在真实伪终端里跑 TUI 的冒烟测试（使用 tmux，无需人工介入）。
 
 覆盖：启动 → 开始页（↑↓ 选菜单）→ 建角界面（↑↓ 选职业/种族，Tab / Shift+Tab / ←→ 切栏，
-焦点 ▸ 只在活动栏）→ 进入游戏 → WASD 移动 → 浮层 → 存档 → 存档管理（↑↓ 选、回车读）→ 退出。
+焦点 ▸ 只在活动栏）→ 序章（背景故事：翻页 / Esc 跳过）→ 进入游戏 → WASD 移动 → 浮层 →
+存档 → 存档管理（↑↓ 选、回车读）→ 退出。
 用法：python3 tools/pty_smoke.py
 """
 
@@ -47,6 +48,17 @@ def start(args: str = "") -> None:
     time.sleep(2.5)
 
 
+def skip_prologue(times: int = 6) -> None:
+    """在序章里一路回车翻到底，回到游戏。
+
+    用回车而不是 Esc：Esc 是歧义键，curses 要等 ESCDELAY（约 1 秒）才认，
+    每个角色都多等一秒太慢；回车会被立刻处理。翻到底之后多余的回车落在地牢里，
+    没有任何绑定，是安全的空操作。
+    """
+    for _ in range(times):
+        send("Enter", wait=0.25)
+
+
 def run_checks() -> dict:
     checks: dict[str, bool] = {}
 
@@ -82,6 +94,20 @@ def run_checks() -> dict:
     checks["非活动栏仍标出选择"] = "· 2. 法师" in after_select
     send("Enter")
     time.sleep(0.6)
+
+    # ---------- 阶段 A1：序章（建角之后展示的背景故事） ----------
+    prologue = capture()
+    print("--- 序章（世界背景）---")
+    print("\n".join(prologue.splitlines()[:8]))
+    checks["建角后进入序章"] = "序章" in prologue and "深渊地牢" in prologue
+    checks["序章交代世界"] = "阿瑟兰" in prologue
+    send("Right")               # 世界 → 入井（怎么进地牢 + 下井须知）
+    descent = capture()
+    checks["序章讲如何进入地牢"] = "深渊之门" in descent
+    checks["序章显示页码"] = "2/2 页" in descent
+    checks["序章留下井须知"] = "深渊遗物" in descent and "深渊守卫" in descent
+    skip_prologue()             # 回车读完 → 进地牢
+    time.sleep(0.5)
 
     screen = capture()
     print("--- 进入游戏（前 6 行）---")
@@ -139,6 +165,9 @@ def run_checks() -> dict:
     checks["Shift+Tab 可切栏"] = "▸ 2. 精灵" in shift_tab
     send("Enter")
     time.sleep(0.6)
+    checks["Shift+Tab 后建角 → 序章"] = "序章" in capture()
+    skip_prologue()             # 序章 → 地牢
+    time.sleep(0.5)
     checks["Shift+Tab 选的种族生效"] = "精灵" in capture()
     type_text("Q")
     send("Right")               # 确认框默认停在「取消」：→ 选「确定」
@@ -148,7 +177,10 @@ def run_checks() -> dict:
 
     # ---------- 阶段 E：CLI 直开（--name/--class/--race） ----------
     start("--seed 8 --name Cli --class cleric --race dwarf")
-    send("Enter", wait=0.8)     # 命令行参数已带全，但仍要过一次开始页（种子在开局时才用）
+    time.sleep(0.4)
+    checks["CLI 捷径也有序章"] = "序章" in capture()   # 新角色一律先读背景故事
+    skip_prologue()             # 序章 → 地牢
+    time.sleep(0.5)
     screen = capture()
     checks["CLI 指定种族"] = "矮人" in screen and "Cli" in screen
     type_text("Q")
@@ -184,7 +216,7 @@ def run_checks() -> dict:
 
     # ---------- 阶段 H：游戏内 Esc 菜单 ----------
     start("--seed 8 --name Cli --class cleric --race dwarf")
-    send("Enter", wait=0.8)      # 过开始页
+    skip_prologue()              # 序章 → 地牢
     send("Escape", wait=1.2)     # Esc → 暂停菜单（tmux 抓屏要等一整帧落下）
     paused = capture()
     print("--- Esc 菜单 ---")

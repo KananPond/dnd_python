@@ -38,6 +38,67 @@ def clip(text: str, room: int) -> str:
     return "".join(out)
 
 
+def _cell(ch: str) -> int:
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+
+
+# 折行时"可以断在它后面"的字符：中文没有词间空格，只能靠标点找断点
+_BREAK_AFTER = "，。、；：！？）》」』】…─—·%,.;:!?)]}\""
+# "不该出现在行首"的收尾标点：断点若让它们开头，就退到上一个断点
+_NO_START = "，。、；：！？）》」』】…·%,.;:!?)]}"
+
+
+def wrap(text: str, width: int) -> list[str]:
+    """把一段文本按**显示宽度**折成多行。
+
+    尽量断在标点或空格之后：中文长句若在句子中间硬断，读起来会散；
+    同时避免让下一行以「，。」」」这类收尾标点开头（断点会往前退）；
+    找不到断点（一长串没有标点的外文）才按宽度硬断。
+    """
+    width = max(1, width)
+    lines: list[str] = []
+    cur: list[str] = []
+    used = 0
+    breaks: list[int] = []      # 当前行里"断在它之前"的候选下标，递增
+    for ch in text:
+        cw = _cell(ch)
+        if used + cw > width and cur:
+            cut = 0
+            while breaks:                       # 从最靠后的断点往前试
+                candidate = breaks.pop()
+                # 断点处的下一个字符：还在同一行里就取 cur，恰好是行尾就取当前这个字
+                nxt = ch if candidate >= len(cur) else cur[candidate]
+                if nxt not in _NO_START:
+                    cut = candidate
+                    break
+            if cut:
+                lines.append("".join(cur[:cut]))
+                cur = cur[cut:]
+                used = sum(_cell(c) for c in cur)
+            else:
+                # 没有任何标点断点：若下一行会以「。」」这类收尾标点开头，
+                # 就往前退到能收尾的位置（宁可上一行短一格，也别让标点跑到行首）
+                cut = 0
+                if ch in _NO_START:
+                    cut = next((c for c in range(len(cur) - 1, 0, -1)
+                                if cur[c] not in _NO_START), 0)
+                if cut:
+                    lines.append("".join(cur[:cut]))
+                    cur = cur[cut:]
+                    used = sum(_cell(c) for c in cur)
+                else:                           # 实在退不了：硬断
+                    lines.append("".join(cur))
+                    cur, used = [], 0
+            breaks = []
+        cur.append(ch)
+        used += cw
+        if ch.isspace() or ch in _BREAK_AFTER:
+            breaks.append(len(cur))
+    if cur:
+        lines.append("".join(cur))
+    return lines
+
+
 def put(win, y: int, x: int, text: str, attr=0) -> None:
     """带边界保护与宽度裁剪的写字符串。"""
     if y < 0 or x < 0:

@@ -112,11 +112,54 @@ class TestCreationEntryPoint(unittest.TestCase):
         self.assertIn("CliPart", out, "命令行给的名字要预填进建角界面")
 
     def test_all_three_args_skip_creation(self):
+        # 等序章出现即可：命令行参数齐备会直接开局（不再经过建角），但新角色仍过一次序章
         out, _code = run_in_pty(["-m", "dnd", "--name", "CliAll", "--class", "cleric",
-                                 "--race", "dwarf"], stop_when="CliAll")
+                                 "--race", "dwarf"], stop_when="序章")
         self.assertNotIn("Traceback", out)
         self.assertNotIn("创建冒险者", out, "三个参数齐备时应直接开局")
         self.assertIn(_TITLE, out, "TUI 应该正常起来")
+
+
+class TestLoreCLI(unittest.TestCase):
+    """`--lore` 是背景故事的无界面出口：没有终端的机器（Windows 原生 Python）也要能看。"""
+
+    def test_prints_the_story_for_the_given_character(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = main(["--lore", "--name", "Aria"])
+        text = out.getvalue()
+        self.assertEqual(rc, 0)
+        self.assertIn("序章", text)
+        self.assertIn("阿瑟兰", text, "要讲清世界背景")
+        self.assertIn("深渊之门", text, "要讲清玩家怎么进地牢")
+        self.assertIn("Aria", text, "要称呼玩家给的名字")
+        self.assertNotIn("Traceback", text)
+
+    def test_defaults_without_a_character(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = main(["--lore"])
+        self.assertEqual(rc, 0)
+        self.assertIn("冒险者", out.getvalue(), "没给名字时应退回默认称呼")
+
+
+@unittest.skipIf(os.name != "posix", "需要 pty + curses")
+class TestPrologueEntryPoint(unittest.TestCase):
+    """建角之后必须展示背景故事；--no-prologue 是老玩家的跳过开关。"""
+
+    def test_prologue_appears_after_character_creation(self):
+        # 等提示栏最后写出的「跳过」：它落笔时整页正文都已经刷新过了
+        out, _code = run_in_pty(["-m", "dnd", "--name", "Prologue", "--class", "wizard",
+                                 "--race", "elf"], stop_when="跳过")
+        self.assertNotIn("Traceback", out)
+        self.assertIn("序章", out, "建角之后应进入背景故事")
+        self.assertIn("阿瑟兰", out, "序章要交代世界背景")
+
+    def test_no_prologue_flag_goes_straight_to_the_dungeon(self):
+        out, _code = run_in_pty(["-m", "dnd", "--name", "NoPrologue", "--class", "warrior",
+                                 "--race", "human", "--no-prologue"], stop_when="NoPrologue")
+        self.assertNotIn("Traceback", out)
+        self.assertNotIn("阿瑟兰", out, "--no-prologue 时不该出现背景故事")
 
 
 @unittest.skipIf(os.name != "posix", "需要 pty + curses")
