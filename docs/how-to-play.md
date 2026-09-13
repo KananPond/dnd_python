@@ -17,9 +17,18 @@
 
 ```bash
 cd <仓库目录>        # 例如 ~/code/dnd
-./pydnd.sh            # 启动游戏
-./pydnd.sh --check    # 只想看环境报告、不启动游戏（排障第一步）
+./pydnd.sh           # 启动游戏
+./pydnd.sh --check   # 只想看环境报告、不启动游戏（排障第一步）
 ```
+
+想在任何目录直接敲 `pydnd`？装一个全局命令（两行包装脚本写死仓库绝对路径；软链 `pydnd.sh` 本身
+不行——脚本刻意不做符号链接解析）：
+
+```bash
+mkdir -p ~/.local/bin && printf '#!/bin/sh\nexec <仓库绝对路径>/pydnd.sh "$@"\n' > ~/.local/bin/pydnd && chmod +x ~/.local/bin/pydnd
+```
+
+`~/.local/bin` 在 Ubuntu/Debian 默认已进 PATH，新开终端生效；`git pull` 更新仓库后无需重装。
 
 脚本会先替你把常见坑拦住：平台（原生 Windows 直接给 WSL2 安装步骤）→ Python 版本与 `curses` →
 是否真实终端 → 终端编码（不是 UTF-8 且系统有可用 UTF-8 locale 时自动补上）→ 窗口尺寸，

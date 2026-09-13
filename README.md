@@ -22,10 +22,22 @@
 ## 快速开始
 
 ```bash
-./pydnd.sh                                         # 唯一推荐入口：Linux / macOS / WSL2 通用
-./pydnd.sh --check                                 # 只做环境自检并打印报告，不启动游戏（报 bug 时请附上它）
+./pydnd.sh                                        # 唯一推荐入口：Linux / macOS / WSL2 通用
+./pydnd.sh --check                                # 只做环境自检并打印报告，不启动游戏（报 bug 时请附上它）
 python3 -m dnd                                    # 等价入口：脚本只做前置校验，不碰游戏逻辑
 ```
+
+想在**任何目录**直接敲 `pydnd` 启动？装一个全局命令——用两行包装脚本把仓库绝对路径写死
+（直接软链 `pydnd.sh` 不行：脚本刻意不做符号链接解析，见脚本头部注释）：
+
+```bash
+mkdir -p ~/.local/bin
+printf '#!/bin/sh\nexec <仓库绝对路径>/pydnd.sh "$@"\n' > ~/.local/bin/pydnd
+chmod +x ~/.local/bin/pydnd
+```
+
+`~/.local/bin` 在 Ubuntu/Debian 的默认 `~/.profile` 里已进 PATH，新开终端即可用；之后 `git pull`
+更新仓库无需重装，只有移动仓库位置时才需要改包装脚本里的那一行路径。
 
 启动后是**开始页**：`新的冒险 / 读取存档 / 名人堂 / 退出游戏`，**↑↓** 移动、**回车**确认（也可 **1-4** 直选、**Esc** 退出）。
 
