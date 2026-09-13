@@ -29,6 +29,8 @@ mkdir -p ~/.local/bin && printf '#!/bin/sh\nexec <仓库绝对路径>/pydnd.sh "
 ```
 
 `~/.local/bin` 在 Ubuntu/Debian 默认已进 PATH，新开终端生效；`git pull` 更新仓库后无需重装。
+若新开终端仍提示找不到命令（终端未启动登录 shell、不读 `~/.profile`），再把
+`PATH="$HOME/.local/bin:$PATH"`（建议带去重判断）补进 `~/.bashrc`。
 
 脚本会先替你把常见坑拦住：平台（原生 Windows 直接给 WSL2 安装步骤）→ Python 版本与 `curses` →
 是否真实终端 → 终端编码（不是 UTF-8 且系统有可用 UTF-8 locale 时自动补上）→ 窗口尺寸，
