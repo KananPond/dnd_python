@@ -241,8 +241,11 @@ def create_player(name: str, class_id: str, rng, race_id: str = "human") -> Play
         attrs[a] = max(3, min(18, attrs.get(a, 10) + int(delta)))
     hp = max(1, klass["hit_die"] + dice.modifier(attrs["CON"]) + 3 + int(race.get("hp_bonus", 0)))
     caster_stat = attrs["INT"] if class_id == "wizard" else attrs["WIS"]
-    mp = max(0, int(klass.get("mp_per_level", 0)) + dice.modifier(caster_stat)
-             + (2 if klass.get("spells") else 0) + int(race.get("mp_bonus", 0)))
+    if klass.get("spells"):
+        mp = max(0, int(klass.get("mp_per_level", 0)) + dice.modifier(caster_stat)
+                 + 2 + int(race.get("mp_bonus", 0)))
+    else:
+        mp = 0  # 不会施法的职业（战士/盗贼）不给法力：界面不必显示一条永远用不上的法力条
     player = Player(
         name=name, class_id=class_id, race_id=race["id"], hp=hp, max_hp=hp, mp=mp, max_mp=mp,
         attrs=attrs, gold=30,

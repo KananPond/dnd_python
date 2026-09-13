@@ -291,7 +291,7 @@ def build_scenes():
         g2.state, g2.player.hp = "dead", 0
         t2, s2 = tui_for(g2, 26, 100)
         t2.roster_recorded = True
-        t2.end_screen(0)
+        t2.end_screen()
         return s2
     scenes["end"] = ("阵亡结算", end)
 

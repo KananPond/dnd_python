@@ -46,7 +46,8 @@ MOVE_KEYS = {
     curses.KEY_LEFT: (-1, 0), curses.KEY_RIGHT: (1, 0),
     ord("k"): (0, -1), ord("j"): (0, 1), ord("h"): (-1, 0), ord("l"): (1, 0),
     ord("y"): (-1, -1), ord("u"): (1, -1), ord("b"): (-1, 1), ord("n"): (1, 1),
-    curses.KEY_HOME: (-1, -1), curses.KEY_NPAGE: (1, 1),
+    curses.KEY_HOME: (-1, -1), curses.KEY_PPAGE: (1, -1),
+    curses.KEY_END: (-1, 1), curses.KEY_NPAGE: (1, 1),
 }
 
 HINTS = [
@@ -117,7 +118,7 @@ class Tui:
             if key == curses.KEY_RESIZE:
                 continue
             if self.game.state != "playing":
-                if self.end_screen(key):
+                if self.end_screen():
                     return
                 continue
             self.handle_key(key)
@@ -614,15 +615,6 @@ class Tui:
         self.roster_recorded = False
         self.message = ""
 
-    def roster_screen(self) -> None:
-        # 名册里存的是**已本地化的名字**（record_roster 写的是 class_name()/race_name()），
-        # 所以这里直接显示，不要再拿它去查数据表——content.race() 对未知 id 会静默退回"人类"，
-        # 一旦数据表换了 id 就会把精灵显示成人类。
-        entries = save_mod.read_roster()
-        rows = ([(("还没有冒险者留下战绩。", "mem"))]
-                if not entries else screens.roster_rows(entries))
-        self._overlay("名人堂", rows)
-
     def help_screen(self) -> None:
         def keys(*pairs) -> str:
             """两个"键位 说明"列，按显示宽度补齐 —— 中文说明也能对齐。"""
@@ -675,7 +667,7 @@ class Tui:
         sum_w = max(_width(describe.item_summary(it)) for it in p.inventory)
         rows = []
         for i, item in enumerate(p.inventory):
-            tag = "已装备" if item in (p.weapon, p.armor) else ""
+            tag = "已装备" if item is p.weapon or item is p.armor else ""
             value = (f"价值 {item.value} 金"
                      if item.value and item.kind not in ("gold", "gem") else "")
             text = (f"{chr(97 + i)}) {pad_to(item.name, name_w)}  "
@@ -724,7 +716,7 @@ class Tui:
         """[确定 / 取消] 确认框，画在游戏画面上（调用方先重画一帧，别叠在菜单面板上）。"""
         return screens.confirm_choice(self.scr, question, no_color=self.no_color)
 
-    def end_screen(self, key: int) -> bool:
+    def end_screen(self) -> bool:
         """返回 True 表示退出程序。"""
         g = self.game
         if not self.roster_recorded:
@@ -749,7 +741,9 @@ class Tui:
             ("", "amber"),
             ("[n] 新游戏     [Q] 退出", "amber"),
         ]
-        self._overlay(title, rows, footer="种子可复现这座地牢（--seed）", min_w=52)
+        # 决定去留的必须是**结算画面上**按下的键：run() 在进入本函数前读到的那个键
+        # 只是"死亡后的任意一键"，若用它判断，画面提示的 [n]/[Q] 就永远晚一拍生效。
+        key = self._overlay(title, rows, footer="种子可复现这座地牢（--seed）", min_w=52)
         if key in (ord("n"), ord("N")):
             name, class_id, race_id = creation_screen(self.scr, self.no_color)
             if not self.no_prologue:

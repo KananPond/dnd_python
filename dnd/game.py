@@ -221,9 +221,13 @@ class Game:
         elif item.kind == "scroll":
             self._apply_offensive_effect(item.effect, item.power or "2d6")
             self.message(f"你阅读了{item.name}。", "magic")
-        elif item.kind in ("weapon", "armor"):
-            for note in auto_equip(self.player):
-                self.message(note, "good")
+        elif item.kind == "weapon":
+            # 背包里点名"使用"哪件就装备哪件（哪怕更差）。"只自动换更好"是拾取时
+            # auto_equip 的规则；这里若沿用，提示"你装备了XX"就可能是一句假话。
+            self.player.weapon = item
+            self.message(f"你装备了{item.name}。", "item")
+        elif item.kind == "armor":
+            self.player.armor = item
             self.message(f"你装备了{item.name}。", "item")
         else:
             self.message(f"{item.name}现在无法使用。", "warn")
@@ -255,10 +259,12 @@ class Game:
             self.player.hp = min(self.player.max_hp, self.player.hp + healed)
             self.message(f"{spell['name']}恢复了 {self.player.hp - before} 点生命。", "good")
         elif effect == "buff_ac":
-            self.player.add_buff("ac", int(spell.get("amount", 2)), int(spell.get("turns", 10)))
+            # buff 在施放回合结束时就会被 tick 掉一次，这里多存 1 回合，
+            # 面板显示才能与法术表的"持续 N 回合"一致（当回合 + 接下来 N 回合有效）。
+            self.player.add_buff("ac", int(spell.get("amount", 2)), int(spell.get("turns", 10)) + 1)
             self.message(f"{spell['name']}环绕着你，护甲 +{spell.get('amount', 2)}。", "magic")
         elif effect == "buff_attack":
-            self.player.add_buff("attack", int(spell.get("amount", 1)), int(spell.get("turns", 10)))
+            self.player.add_buff("attack", int(spell.get("amount", 1)), int(spell.get("turns", 10)) + 1)
             self.message(f"{spell['name']}指引你的手，命中 +{spell.get('amount', 1)}。", "magic")
         self._end_turn()
 
