@@ -5,10 +5,10 @@
 # Windows 原生 cmd / PowerShell / Git Bash / Cygwin 不支持 curses，不在支持范围内 —— 请用 WSL2。
 #
 #   用法 / usage:
-#     ./play.sh                      启动游戏（进入建角界面）
-#     ./play.sh --seed 42 --name Aria --class wizard --race elf
-#     ./play.sh --check              只做环境自检，不启动游戏
-#     ./play.sh --help               转发给游戏显示全部参数
+#     ./pydnd.sh                      启动游戏（进入建角界面）
+#     ./pydnd.sh --seed 42 --name Aria --class wizard --race elf
+#     ./pydnd.sh --check              只做环境自检，不启动游戏
+#     ./pydnd.sh --help               转发给游戏显示全部参数
 #
 #   环境变量:
 #     DND_PYTHON=/path/to/python3    指定解释器（默认自动探测 python3 / python）
@@ -31,7 +31,7 @@ esac
 
 # 取脚本所在目录。这里**刻意不做符号链接解析**：`readlink -f` 是 GNU 扩展，
 # macOS 自带 readlink 没有 -f，用它会让脚本在 mac 上直接失败（而 mac 正是必须支持的平台之一）。
-# 所以仓库怎么放就怎么调：`cd <仓库> && ./play.sh`，或 `sh <仓库绝对路径>/play.sh`。
+# 所以仓库怎么放就怎么调：`cd <仓库> && ./pydnd.sh`，或 `sh <仓库绝对路径>/pydnd.sh`。
 # 软链到 ~/.local/bin 的用法不支持（会误判仓库根目录）。
 root=''
 sdir=$(CDPATH= cd -- "$(dirname -- "$script")" 2>/dev/null && pwd -P) || sdir=''
@@ -85,7 +85,7 @@ case $uname_s in
     say "请在 WSL2 里运行 / please run inside WSL2:"
     say "  1) Windows 终端里执行:  wsl --install -d Ubuntu"
     say "  2) 进入 WSL:            wsl"
-    say "  3) 进入 WSL 里 cd 到本仓库（Windows 盘上的仓库在 WSL 下是 /mnt/<盘符>/…），再执行 ./play.sh"
+    say "  3) 进入 WSL 里 cd 到本仓库（Windows 盘上的仓库在 WSL 下是 /mnt/<盘符>/…），再执行 ./pydnd.sh"
     say ""
     note "本仓库刻意不做 Windows 原生适配：Windows 原生 Python 没有标准库 curses，"
     note "强行支持需要额外依赖（windows-curses），与「零第三方依赖」的设计目标冲突。"
@@ -138,7 +138,7 @@ if [ "${pyfail:-no}" = yes ]; then
   say "                      或用 /usr/bin/python3（≥3.9，但本游戏需要 ≥3.10）"
   say ""
   note "已装好但仍报错？可能只是名字不同，直接指定："
-  note "  DND_PYTHON=\$(command -v python3.12) ./play.sh"
+  note "  DND_PYTHON=\$(command -v python3.12) ./pydnd.sh"
   exit 2
 fi
 
@@ -249,10 +249,10 @@ run_check() {
     note "先解决上面这条依赖问题（多数情况是"换一个带 curses 的 Python"，Windows 用户请用 WSL2）。"
   elif [ "$ttyok" = yes ]; then
     [ "$enc" = utf8 ] || note "注意：编码不是 UTF-8，中文/框线可能乱码；可加 --ascii，或把终端设为 UTF-8。"
-    note "接下来直接跑 ./play.sh 即可开始游戏。"
+    note "接下来直接跑 ./pydnd.sh 即可开始游戏。"
   else
     note "这里不是真实终端，所以只能自检。/ Not a real terminal: self-check only."
-    note "请在终端窗口里跑 ./play.sh；无界面验证用 ./play.sh --headless-demo 300 --seed 5"
+    note "请在终端窗口里跑 ./pydnd.sh；无界面验证用 ./pydnd.sh --headless-demo 300 --seed 5"
   fi
 }
 
@@ -276,13 +276,13 @@ fi
 # 依赖自检的结论（dep_ok）已经在第 4 节算过了，这里只负责"不通过就别启动"。
 if [ "$dep_ok" = no ]; then
   printf '%s\n' "$dep_err" >&2   # 把 python 的完整原因原样打出来
-  hint_inline "只是想在无终端环境里验证代码？./play.sh --headless-demo 300 --seed 5"
+  hint_inline "只是想在无终端环境里验证代码？./pydnd.sh --headless-demo 300 --seed 5"
   exit 2
 fi
 if [ "$ttyok" = no ]; then
   err "stdout 不是交互式终端 —— 本游戏的 TUI 需要真实终端。"
-  note "请在终端窗口里运行 ./play.sh（不要用管道/重定向/IDE 输出面板）。"
-  hint_inline "无界面自检：./play.sh --headless-demo 300 --seed 5"
+  note "请在终端窗口里运行 ./pydnd.sh（不要用管道/重定向/IDE 输出面板）。"
+  hint_inline "无界面自检：./pydnd.sh --headless-demo 300 --seed 5"
   exit 2
 fi
 
