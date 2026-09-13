@@ -235,7 +235,7 @@ class TestLayout(unittest.TestCase):
 
     def test_overlay_never_touches_the_sidebar(self):
         """回归：浮层按整屏宽度居中会跨到侧栏上——擦掉左边框却留下内容，
-        屏幕上就出现"金币"变"币"、"骷髅"变"髅"这种坏掉的界面。"""
+        屏幕上就出现"金币"变"币"、"灰壤鼠"变"壤鼠"这种坏掉的界面。"""
         for h, w in ((32, 118), (28, 104)):
             game = Game(17, "Modal", "wizard")
             game.player.gold = 12345

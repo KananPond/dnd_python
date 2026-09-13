@@ -3,20 +3,20 @@
     "confidence": "invented",
     "license": "CC0-1.0",
     "license_note": "本表内容数据以 CC0-1.0 公共领域奉献发布（见 dnd/data/LICENSE-CC0.txt），代码部分为 MIT（见 LICENSE）。",
-    "note": "怪物名使用公有领域的通用奇幻词汇（避开 TSR/WotC 专有名词）；数值为复刻自定，按深度分层。",
-    "source": "docs/research-dossier.md#四"
+    "note": "怪物名大多沿用公有领域的通用奇幻词汇（骷髅/巨蛛/半兽人/食尸鬼/食人魔/吸血鬼/恶魂/炎魔），少数为本项目自创（灰壤鼠/窖犬/拾荒妖/深渊守卫），逐条对照见 docs/world-setting.md 第十二节；数值为复刻自定，按深度分层。id 与数值保持稳定，可整体替换。",
+    "source": "docs/world-setting.md#十二、深渊生物图鉴"
   },
   "monsters": [
-    {"id": "giant_rat", "name": "巨鼠", "name_zh": "巨鼠", "glyph": "r", "color": "brown", "hp": "1d6", "ac": 10, "attack_bonus": 1, "damage": "1d4", "xp": 3, "depth": [1, 3], "weight": 10},
-    {"id": "kobold", "name": "狗头人", "name_zh": "狗头人", "glyph": "k", "color": "green", "hp": "1d6+1", "ac": 11, "attack_bonus": 1, "damage": "1d4", "xp": 4, "depth": [1, 4], "weight": 9},
-    {"id": "goblin", "name": "哥布林", "name_zh": "哥布林", "glyph": "g", "color": "green", "hp": "1d8", "ac": 12, "attack_bonus": 2, "damage": "1d6", "xp": 6, "depth": [2, 5], "weight": 8},
+    {"id": "giant_rat", "name": "灰壤鼠", "name_zh": "灰壤鼠", "glyph": "r", "color": "brown", "hp": "1d6", "ac": 10, "attack_bonus": 1, "damage": "1d4", "xp": 3, "depth": [1, 3], "weight": 10},
+    {"id": "kobold", "name": "窖犬", "name_zh": "窖犬", "glyph": "k", "color": "green", "hp": "1d6+1", "ac": 11, "attack_bonus": 1, "damage": "1d4", "xp": 4, "depth": [1, 4], "weight": 9},
+    {"id": "goblin", "name": "拾荒妖", "name_zh": "拾荒妖", "glyph": "g", "color": "green", "hp": "1d8", "ac": 12, "attack_bonus": 2, "damage": "1d6", "xp": 6, "depth": [2, 5], "weight": 8},
     {"id": "skeleton", "name": "骷髅", "name_zh": "骷髅", "glyph": "s", "color": "white", "hp": "1d8+2", "ac": 12, "attack_bonus": 2, "damage": "1d6", "xp": 8, "depth": [2, 6], "weight": 7, "undead": true},
     {"id": "giant_spider", "name": "巨蛛", "name_zh": "巨蛛", "glyph": "S", "color": "brown", "hp": "2d6", "ac": 12, "attack_bonus": 3, "damage": "1d6", "xp": 10, "depth": [3, 6], "weight": 6},
     {"id": "orc", "name": "半兽人", "name_zh": "半兽人", "glyph": "o", "color": "red", "hp": "2d8", "ac": 14, "attack_bonus": 4, "damage": "2d4", "xp": 14, "depth": [4, 7], "weight": 7},
     {"id": "ghoul", "name": "食尸鬼", "name_zh": "食尸鬼", "glyph": "G", "color": "magenta", "hp": "3d8", "ac": 15, "attack_bonus": 4, "damage": "1d8", "xp": 20, "depth": [5, 8], "weight": 6, "undead": true},
     {"id": "ogre", "name": "食人魔", "name_zh": "食人魔", "glyph": "O", "color": "red", "hp": "4d8+4", "ac": 14, "attack_bonus": 6, "damage": "2d6+2", "xp": 35, "depth": [6, 9], "weight": 5},
-    {"id": "wraith", "name": "幽魂", "name_zh": "幽魂", "glyph": "W", "color": "cyan", "hp": "5d8", "ac": 16, "attack_bonus": 7, "damage": "2d6", "xp": 55, "depth": [7, 10], "weight": 5, "undead": true},
-    {"id": "troll", "name": "巨魔", "name_zh": "巨魔", "glyph": "T", "color": "green", "hp": "6d8+6", "ac": 16, "attack_bonus": 8, "damage": "2d8", "xp": 80, "depth": [8, 10], "weight": 4},
+    {"id": "wraith", "name": "恶魂", "name_zh": "恶魂", "glyph": "W", "color": "cyan", "hp": "5d8", "ac": 16, "attack_bonus": 7, "damage": "2d6", "xp": 55, "depth": [7, 10], "weight": 5, "undead": true},
+    {"id": "troll", "name": "炎魔", "name_zh": "炎魔", "glyph": "T", "color": "red", "hp": "6d8+6", "ac": 16, "attack_bonus": 8, "damage": "2d8", "xp": 80, "depth": [8, 10], "weight": 4},
     {"id": "vampire", "name": "吸血鬼", "name_zh": "吸血鬼", "glyph": "V", "color": "magenta", "hp": "7d8", "ac": 17, "attack_bonus": 9, "damage": "3d6", "xp": 120, "depth": [9, 10], "weight": 3, "undead": true},
     {"id": "deep_guardian", "name": "深渊守卫", "name_zh": "深渊守卫", "glyph": "D", "color": "yellow", "hp": "10d8+20", "ac": 19, "attack_bonus": 11, "damage": "3d8+3", "xp": 300, "depth": [10, 10], "weight": 0, "boss": true}
   ]

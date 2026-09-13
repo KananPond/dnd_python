@@ -122,8 +122,9 @@ grep -rniE "dungeons|dragons|d&d|tsr|wotc|wizards of the coast|beholder|mind fla
 `tests/test_core.py::TestLore::test_story_text_has_no_wotc_proper_nouns` 守住——它只扫故事正文
 （`lore.plain_text`），不扫 `_meta` 与文档里的合规注释，避免"连免责声明一起扫掉"。
 
-**2) 内容条目逐条目视核对**：43 条全部为公有领域通用奇幻词汇（哥布林/骷髅/巨魔/吸血鬼/食尸鬼/幽魂…）
-或自创名（深渊守卫/深渊遗物）。
+**2) 内容条目逐条目视核对**：职业/种族/物品/法术与大部分怪物名（骷髅/巨蛛/半兽人/食尸鬼/食人魔/吸血鬼/恶魂/炎魔）
+为公有领域通用奇幻词汇；其余怪物名与序章设定名为本项目自创（灰壤鼠/窖犬/拾荒妖/深渊守卫，
+逐条对照见 `docs/world-setting.md` 第十二节），未出现任何他方专有名词。
 
 **3) 依赖审计**
 
