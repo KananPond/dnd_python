@@ -17,8 +17,8 @@
 
 ```bash
 cd <仓库目录>        # 例如 ~/code/dnd
-./play.sh            # 启动游戏
-./play.sh --check    # 只想看环境报告、不启动游戏（排障第一步）
+./pydnd.sh            # 启动游戏
+./pydnd.sh --check    # 只想看环境报告、不启动游戏（排障第一步）
 ```
 
 脚本会先替你把常见坑拦住：平台（原生 Windows 直接给 WSL2 安装步骤）→ Python 版本与 `curses` →
@@ -31,19 +31,19 @@ cd <仓库目录>        # 例如 ~/code/dnd
 python3 -m dnd
 ```
 
-常用变体（`./play.sh` 与 `python3 -m dnd` 参数完全一致）：
+常用变体（`./pydnd.sh` 与 `python3 -m dnd` 参数完全一致）：
 
 ```bash
-./play.sh --seed 42 --name Aria --class wizard --race elf   # 三个都给出才跳过开始页直接开局；只给一部分会进建角并预填
-./play.sh --load saves/aria.json   # 直接读指定存档（跳过开始页）
-./play.sh --latest                 # 接着最近一次存档玩（跳过开始页）
-./play.sh --menu                   # 参数再全也先回开始页
-./play.sh --modern                 # 现代模式：可免死一次
-./play.sh --debug                  # 调试键：x 显示全图，t 传送
-./play.sh --no-color               # 关闭颜色
-./play.sh --ascii                  # 框线/进度条换纯 ASCII（中文终端把 ─│ 当两格宽时用）
-./play.sh --no-prologue            # 跳过建角后的背景故事，直接进地牢
-./play.sh --lore                   # 不上界面，直接在终端里打印背景故事
+./pydnd.sh --seed 42 --name Aria --class wizard --race elf   # 三个都给出才跳过开始页直接开局；只给一部分会进建角并预填
+./pydnd.sh --load saves/aria.json   # 直接读指定存档（跳过开始页）
+./pydnd.sh --latest                 # 接着最近一次存档玩（跳过开始页）
+./pydnd.sh --menu                   # 参数再全也先回开始页
+./pydnd.sh --modern                 # 现代模式：可免死一次
+./pydnd.sh --debug                  # 调试键：x 显示全图，t 传送
+./pydnd.sh --no-color               # 关闭颜色
+./pydnd.sh --ascii                  # 框线/进度条换纯 ASCII（中文终端把 ─│ 当两格宽时用）
+./pydnd.sh --no-prologue            # 跳过建角后的背景故事，直接进地牢
+./pydnd.sh --lore                   # 不上界面，直接在终端里打印背景故事
 ```
 
 ## 2. 开始页
@@ -416,9 +416,9 @@ python3 -m dnd --roster         # 打印名人堂
 
 **在 Windows 的 cmd/PowerShell 里报错？** 原生 Python 没有标准库 `curses`，那里跑不了。请在 **WSL2** 终端里跑：
 管理员 PowerShell 执行 `wsl --install -d Ubuntu`（装完重启），在 Windows 终端里输入 `wsl` 进入发行版，
-再 `cd` 到仓库目录执行 `./play.sh`。`./play.sh` 在原生 Windows 环境下也会直接给出这段指引。
+再 `cd` 到仓库目录执行 `./pydnd.sh`。`./pydnd.sh` 在原生 Windows 环境下也会直接给出这段指引。
 
-**不确定环境哪里不对？** 先跑 `./play.sh --check`：它会一次打印平台、解释器版本、curses 是否可用、
+**不确定环境哪里不对？** 先跑 `./pydnd.sh --check`：它会一次打印平台、解释器版本、curses 是否可用、
 是否是真实终端、`TERM`/编码/locale、窗口尺寸、存档目录。报 bug 时请把这份报告一起贴上。
 
 **没有图形界面（比如 SSH/CI）想验证？**

@@ -39,7 +39,7 @@
 
 ```
 DND/
-├─ play.sh               跨平台启动脚本（POSIX sh：Linux / macOS / WSL2；自检 + 启动，含 --check）
+├─ pydnd.sh              跨平台启动脚本（POSIX sh：Linux / macOS / WSL2；自检 + 启动，含 --check）
 ├─ pyproject.toml        包元数据（MIT、requires-python ≥ 3.10、可选依赖 Pillow、console script 入口）
 ├─ LICENSE               代码协议（MIT）｜ dnd/data/LICENSE-CC0.txt 数据协议（CC0-1.0）
 ├─ dnd/                  游戏包（python3 -m dnd）—— 4093 行 Python（其中 ui/ 2161 行）
@@ -122,7 +122,7 @@ rng ← dice ← entities ← level ← game ← save
 
 **为什么是"一个脚本 + 一条命令"，而不是给每个平台写一份**
 
-- `./play.sh` 是唯一推荐入口，`python3 -m dnd` 是等价的底层入口（脚本只做前置校验，不碰游戏逻辑）。
+- `./pydnd.sh` 是唯一推荐入口，`python3 -m dnd` 是等价的底层入口（脚本只做前置校验，不碰游戏逻辑）。
 - 用 **POSIX sh**（`#!/bin/sh`，只用 `test`/`case`/`printf`/`sed -n Np`），因为 macOS 的 `/bin/sh` 是 bash 3.2，
   自带 `readlink` 没有 `-f`、`dirname` 行为也略有差异 —— 不用任何 GNU 扩展，才能"mac 上没测过也大概率能跑"。
 - **刻意不做 Windows 原生适配**：原生 Python 没有标准库 `curses`，要支持就得引入 `windows-curses`，
@@ -134,7 +134,7 @@ rng ← dice ← entities ← level ← game ← save
 - `--headless-demo` / `--list-saves` / `--roster` 这三类不需要终端的用法会被脚本直接 `exec` 给 python，
   不干预 locale 与尺寸，因此也能在 CI、cron、ssh 非交互会话里用。
 
-**两个必须守住的实现细节**（都踩过坑，已写进 `play.sh` 注释）：
+**两个必须守住的实现细节**（都踩过坑，已写进 `pydnd.sh` 注释）：
 
 1. **脚本内不能用 here-document 喂 python**：`sh` 的 here-doc 从脚本自身的 stdin 读取，会把终端键盘输入吞掉，
    游戏就收不到按键了。所有内联 python 一律用 `-c '...'`。
@@ -217,7 +217,7 @@ rng ← dice ← entities ← level ← game ← save
 **当前实测结果（本轮全绿）**
 
 ```bash
-./play.sh --check                             # 环境自检（平台/Python/curses/终端/编码/尺寸），排障第一步
+./pydnd.sh --check                             # 环境自检（平台/Python/curses/终端/编码/尺寸），排障第一步
 python3 -m unittest discover -s tests -v      # 123 项：内核 37 / TUI 76 / CLI 10
 python3 tools/pty_smoke.py                    # 44 项：tmux 真实伪终端里的 TUI 冒烟
 python3 -m dnd --lore                          # 背景故事纯文本版（无终端也能跑）
@@ -252,7 +252,7 @@ python3 tools/preview.py                      # 18 个界面场景渲染为 PNG�
 | **M4 观感与操作** | ✅ | 琥珀辉光配色、标题栏/体征栏/侧栏/日志/浮层/结局、帮助页、ASCII 与无颜色降级、中文按显示宽度裁剪、**开始页 + 存档管理 + Esc 暂停菜单**（全部 ↑↓ + 回车）、**建角后的序章 + 游戏内 `B` 重看背景** |
 | **M5 平衡与自动化** | 🟡 | 已完成：`tools/sim.py` 贪心机器人跑批、四职业基线数据、`tools/preview.py` 18 场景。待做：各职业平衡（法师偏弱）、关键指标回归基线固化进测试 |
 | **M6 存档/名册/调试** | 🟡 | 已完成：JSON 存档、原子写、`_meta` 摘要、存档索引/删除、图形化读档删档、名人堂、确定性回放、调试键。待做：多角色槽位、存档导入导出 |
-| **M7 抛光交付** | 🟡 | 已完成：README、上手指南、四份 docs、启动脚本、`play.sh --check`、文档全面重写。待做：分享串、变更记录、CI |
+| **M7 抛光交付** | 🟡 | 已完成：README、上手指南、四份 docs、启动脚本、`pydnd.sh --check`、文档全面重写。待做：分享串、变更记录、CI |
 
 **当前平衡基线**（贪心机器人、人类种族、seed 1–40、回合上限 4000）：
 
@@ -272,7 +272,7 @@ python3 tools/preview.py                      # 18 个界面场景渲染为 PNG�
 | 范围蔓延 | 交付遥遥无期 | M1–M2 定义为"最小完整可玩版"，M3+ 为增强；本文档持续记录进度 |
 | 终局硬拼劝退 | 玩家觉得不可能通关 | 守卫必生成但**遗物可抢走即胜**；README 明写"引开它再冲刺" |
 | 商标与版权 | 法律风险 | 不用 D&D 品牌与专有名词；仅用公有领域通用词（见 `open-source-compliance.md`） |
-| 启动环境差异 | "clone 下来跑不起来"是开源项目第一杀手 | `play.sh` 逐项前置校验；原生 Windows 直接给 WSL2 指引；`--check` 一键出报告 |
+| 启动环境差异 | "clone 下来跑不起来"是开源项目第一杀手 | `pydnd.sh` 逐项前置校验；原生 Windows 直接给 WSL2 指引；`--check` 一键出报告 |
 | 界面回归 | 中文越界/面板错位这类问题肉眼难查 | 假屏幕布局测试 + 18 场景 PNG 预览 + "踩坑即留测试"的约定 |
 
 ## 11. 决策留痕

@@ -34,7 +34,7 @@
 
 | 范围 | 协议 | 文件 | 为什么 |
 |---|---|---|---|
-| 代码（`dnd/**.py`、`tests/`、`tools/`、`play.sh`、`pyproject.toml`） | **MIT** | `LICENSE` | 最宽松、最短、最被广泛理解；任何人可以 fork、改名、商用、闭源再发行，只需保留版权声明。对一个"供人玩、也供人改"的小型游戏最省事 |
+| 代码（`dnd/**.py`、`tests/`、`tools/`、`pydnd.sh`、`pyproject.toml`） | **MIT** | `LICENSE` | 最宽松、最短、最被广泛理解；任何人可以 fork、改名、商用、闭源再发行，只需保留版权声明。对一个"供人玩、也供人改"的小型游戏最省事 |
 | 内容数据（`dnd/data/*.json`，含序章文本 `lore.json`） | **CC0-1.0**（公共领域奉献） | `dnd/data/LICENSE-CC0.txt` | 数据表是本项目最希望被替换/再创作的部分。CC0 取消一切署名与传染义务，别人可以直接把自己的怪物表、甚至整份世界观贴进任何项目。这与数据里 `_meta.confidence: invented`（"可整体替换"）的设计意图一致 |
 | 文档（`README.md`、`docs/**`、根目录检索报告） | 随代码走 MIT | 同 `LICENSE` | 文档含史实考据与出处链接，用最宽松的协议便于被引用 |
 
@@ -175,7 +175,7 @@ git ls-files | xargs grep -nE '(/mnt/[a-z]/|/home/[a-z]|C:\\|/Users/)'
 - [x] `LICENSE`（MIT）放仓库根 —— 没有协议的开源项目默认"保留一切权利"，别人**不能合法使用**
 - [x] 数据目录的 CC0 声明（`dnd/data/LICENSE-CC0.txt` + 六张表的 `_meta.license`，含序章文本 `lore.json`）
 - [x] `pyproject.toml`（包元数据 + 协议 + 可选依赖 + 入口点 + Python 版本底线）
-- [x] 跨平台启动脚本 `play.sh`（Linux / macOS / WSL2 统一入口）
+- [x] 跨平台启动脚本 `pydnd.sh`（Linux / macOS / WSL2 统一入口）
 - [x] `README.md` 许可、平台支持与启动章节
 - [x] README 补"非官方、无关联"声明
 - [x] 清掉文档里的本机绝对路径
@@ -186,7 +186,7 @@ git ls-files | xargs grep -nE '(/mnt/[a-z]/|/home/[a-z]|C:\\|/Users/)'
 
 - [ ] `CONTRIBUTING.md`：怎么跑测试、代码风格、提交信息语言、**贡献者许可**（MIT 入站=出站即可，无需 CLA；
       若坚持要 DCO，写明 `git commit -s`）
-- [ ] GitHub/Gitee Issues 模板（bug 报告请附 `./play.sh --check` 输出 —— 这是收集环境信息最省事的方式）
+- [ ] GitHub/Gitee Issues 模板（bug 报告请附 `./pydnd.sh --check` 输出 —— 这是收集环境信息最省事的方式）
 - [ ] CI（例如 GitHub Actions 矩阵：ubuntu/macos × 3.10/3.14，跑
       `python3 -m unittest discover -s tests` + `tools/pty_smoke.py`；Windows runner 只跑 `--headless-demo`，
       因为原生 Python 没有 curses）
@@ -194,15 +194,15 @@ git ls-files | xargs grep -nE '(/mnt/[a-z]/|/home/[a-z]|C:\\|/Users/)'
       读档会执行 JSON 解析但不会执行代码"即可）
 - [ ] `CHANGELOG.md`（版本已在 `dnd/__init__.py` 定为 0.1.0，建议打 `v0.1.0` tag）
 - [ ] README 加英文摘要段（面向国际读者降低门槛；游戏界面本身是中文）
-- [ ] 仓库文件权限统一（Windows 挂载盘下所有文件都显示 777，建议 `git update-index --chmod=+x play.sh`
-      固化可执行位，避免 clone 后 `./play.sh` 不可执行）
+- [ ] 仓库文件权限统一（Windows 挂载盘下所有文件都显示 777，建议 `git update-index --chmod=+x pydnd.sh`
+      固化可执行位，避免 clone 后 `./pydnd.sh` 不可执行）
 
 **可选（能力增强，不是合规要求）**
 
 - [ ] 把存档目录从"仓库内 `saves/`"改为"用户数据目录"（`$XDG_DATA_HOME/dnd` 或 `~/.local/share/dnd`），
       或支持 `DND_SAVE_DIR` 环境变量覆盖 —— 这样 `pipx install dnd` 之后也能正常存档（当前存档写在仓库/安装目录旁）
 - [ ] Windows 原生支持：需要额外依赖 `windows-curses`，与"零第三方依赖"目标冲突，本项目已明确**不支持**，
-      Windows 用户走 WSL2（`play.sh` 会检测并给出安装指引）
+      Windows 用户走 WSL2（`pydnd.sh` 会检测并给出安装指引）
 
 ---
 

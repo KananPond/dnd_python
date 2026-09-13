@@ -22,8 +22,8 @@
 ## 快速开始
 
 ```bash
-./play.sh                                         # 唯一推荐入口：Linux / macOS / WSL2 通用
-./play.sh --check                                 # 只做环境自检并打印报告，不启动游戏（报 bug 时请附上它）
+./pydnd.sh                                         # 唯一推荐入口：Linux / macOS / WSL2 通用
+./pydnd.sh --check                                 # 只做环境自检并打印报告，不启动游戏（报 bug 时请附上它）
 python3 -m dnd                                    # 等价入口：脚本只做前置校验，不碰游戏逻辑
 ```
 
@@ -37,30 +37,30 @@ python3 -m dnd                                    # 等价入口：脚本只做�
 命令行参数是"老玩家快捷键"（也是伪终端冒烟测试依赖的路径）：
 
 ```bash
-./play.sh --seed 42 --name Aria --class wizard --race elf   # 三个都给出才跳过开始页直接开局（仍会过一次序章）
-./play.sh --no-prologue                           # 跳过建角后的背景故事，直接进地牢
-./play.sh --lore --name Aria                      # 不上界面，直接在终端里打印序章
-./play.sh --load saves/aria.json                  # 直接读指定存档
-./play.sh --latest                                # 读最近一次存档（跳过开始页）
-./play.sh --menu                                  # 参数再全也先回开始页
-./play.sh --modern                                # 现代模式：免死一次
-./play.sh --debug                                 # 调试键：x 显示全图，t 传送
-./play.sh --no-color                              # 关闭颜色
-./play.sh --ascii                                 # 框线/进度条退回纯 ASCII（中文终端把 ─│ 当两格宽时用）
-./play.sh --list-saves                            # 列出存档文件（脚本用）
-./play.sh --roster                                # 打印名人堂
-./play.sh --headless-demo 300 --seed 5            # 无终端环境自检：跑 300 回合并打印状态
+./pydnd.sh --seed 42 --name Aria --class wizard --race elf   # 三个都给出才跳过开始页直接开局（仍会过一次序章）
+./pydnd.sh --no-prologue                           # 跳过建角后的背景故事，直接进地牢
+./pydnd.sh --lore --name Aria                      # 不上界面，直接在终端里打印序章
+./pydnd.sh --load saves/aria.json                  # 直接读指定存档
+./pydnd.sh --latest                                # 读最近一次存档（跳过开始页）
+./pydnd.sh --menu                                  # 参数再全也先回开始页
+./pydnd.sh --modern                                # 现代模式：免死一次
+./pydnd.sh --debug                                 # 调试键：x 显示全图，t 传送
+./pydnd.sh --no-color                              # 关闭颜色
+./pydnd.sh --ascii                                 # 框线/进度条退回纯 ASCII（中文终端把 ─│ 当两格宽时用）
+./pydnd.sh --list-saves                            # 列出存档文件（脚本用）
+./pydnd.sh --roster                                # 打印名人堂
+./pydnd.sh --headless-demo 300 --seed 5            # 无终端环境自检：跑 300 回合并打印状态
 ```
 
 ### 平台支持
 
 | 系统 | 怎么跑 | 说明 |
 |---|---|---|
-| **Linux** | `./play.sh` | 需要 `python3`（≥ 3.10）。发行版若未自带：`sudo apt install -y python3` |
-| **macOS** | `./play.sh` | 系统自带 `python3` 可能只有 3.9；用 `brew install python` 装新的，或 `DND_PYTHON=/opt/homebrew/bin/python3 ./play.sh` |
-| **Windows** | **必须用 WSL2** | WSL 终端里 `cd` 到仓库后 `./play.sh`。原生 cmd/PowerShell/Git Bash **不支持**（原生 Python 没有标准库 `curses`）。安装：管理员 PowerShell 执行 `wsl --install -d Ubuntu`，重启后进入 `wsl` |
+| **Linux** | `./pydnd.sh` | 需要 `python3`（≥ 3.10）。发行版若未自带：`sudo apt install -y python3` |
+| **macOS** | `./pydnd.sh` | 系统自带 `python3` 可能只有 3.9；用 `brew install python` 装新的，或 `DND_PYTHON=/opt/homebrew/bin/python3 ./pydnd.sh` |
+| **Windows** | **必须用 WSL2** | WSL 终端里 `cd` 到仓库后 `./pydnd.sh`。原生 cmd/PowerShell/Git Bash **不支持**（原生 Python 没有标准库 `curses`）。安装：管理员 PowerShell 执行 `wsl --install -d Ubuntu`，重启后进入 `wsl` |
 
-`play.sh` 的校验顺序固定为：平台（原生 Windows 直接给 WSL2 安装指引）→ Python 版本与 `curses` →
+`pydnd.sh` 的校验顺序固定为：平台（原生 Windows 直接给 WSL2 安装指引）→ Python 版本与 `curses` →
 是否真实终端 → 终端编码（不是 UTF-8 且系统有可用 UTF-8 locale 时自动补上）→ 窗口尺寸，然后才 `exec python3 -m dnd`。
 任何一步不过都给出可操作的中英文提示，**不会留下一个意义不明的 traceback**；自检失败时退出码为 2。
 
@@ -127,7 +127,7 @@ python3 -m dnd                                    # 等价入口：脚本只做�
 ## 验证（可重复执行，本轮全绿）
 
 ```bash
-./play.sh --check                              # 环境自检：平台/Python/curses/终端编码/尺寸……一次全打印
+./pydnd.sh --check                              # 环境自检：平台/Python/curses/终端编码/尺寸……一次全打印
 python3 -m unittest discover -s tests -v       # 123 项：内核 37 / TUI 76 / CLI 10
 python3 tools/pty_smoke.py                     # 44 项：tmux 真实伪终端里的端到端交互冒烟
 python3 -m dnd --lore                          # 背景故事纯文本版（无终端也能跑）
@@ -161,7 +161,7 @@ python3 tools/preview.py                       # 把界面渲染成 PNG 供人�
 ## 目录结构
 
 ```
-play.sh                跨平台启动脚本（POSIX sh：Linux / macOS / WSL2；环境自检 + 启动，含 --check）
+pydnd.sh               跨平台启动脚本（POSIX sh：Linux / macOS / WSL2；环境自检 + 启动，含 --check）
 pyproject.toml         包元数据（MIT、requires-python ≥ 3.10、可选依赖 Pillow、console script 入口）
 LICENSE                代码协议（MIT）｜ dnd/data/LICENSE-CC0.txt 数据协议（CC0-1.0）
 dnd/                   游戏包（python3 -m dnd）
@@ -244,7 +244,7 @@ git push github master  # 推 GitHub
 
 | 范围 | 协议 | 文件 |
 |---|---|---|
-| 代码：`dnd/**/*.py`、`tests/`、`tools/`、`play.sh`、`pyproject.toml` | **MIT** | [`LICENSE`](LICENSE) |
+| 代码：`dnd/**/*.py`、`tests/`、`tools/`、`pydnd.sh`、`pyproject.toml` | **MIT** | [`LICENSE`](LICENSE) |
 | 内容数据：`dnd/data/*.json`（职业/种族/怪物/物品/法术表，以及背景故事表 `lore.json`） | **CC0-1.0**（公共领域） | [`dnd/data/LICENSE-CC0.txt`](dnd/data/LICENSE-CC0.txt) |
 | 文档：`README.md`、`docs/**`、检索报告 | MIT | 同 `LICENSE` |
 
@@ -291,7 +291,7 @@ CC0 取消了署名与传染义务，你可以直接改数值、加怪物、做�
 本轮只做一件事：**把全部文档按当前代码与实测结果重写一遍**，消除旧文档里已经过期的数字与说法。做法：
 
 1. 先跑验证取得事实：`unittest`（98 项）、`tools/pty_smoke.py`（37 项）、`tools/sim.py`（四职业各 40 局）、
-   `./play.sh --check`、`--headless-demo`，并数清行数、内容条目与 git 历史。
+   `./pydnd.sh --check`、`--headless-demo`，并数清行数、内容条目与 git 历史。
 2. 逐个读源码核对文档里的每条说法（入口参数、键位、存档字段、数值、布局常量、测试与工具覆盖面）。
 3. 重写 README 与 `docs/` 下全部文档及根目录检索报告，改掉与实现不符的旧数字（测试数量、平衡数据、
    已做的待办项等），并补齐后来新增的开始页 / 存档管理 / Esc 菜单等内容。
@@ -369,5 +369,5 @@ CC0 取消了署名与传染义务，你可以直接改数值、加怪物、做�
 
 本声明的语义是"这些文件由上述模型在上述环境下生成，并经过 AI 自己的实机验证，**但从未经过人类审查**"。
 自动化测试由同一个模型编写，天然会漏掉它自己没想到的情况。因此采用前请自行审查
-（尤其 `play.sh` 这类要直接在你机器上执行、会改环境的脚本）。AI 生成不改变许可：
+（尤其 `pydnd.sh` 这类要直接在你机器上执行、会改环境的脚本）。AI 生成不改变许可：
 本仓库代码与文档仍是 MIT、内容数据仍是 CC0-1.0；同时不构成对代码正确性、安全性或适用性的担保。
